@@ -1,0 +1,47 @@
+{
+  "name": "raasta-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "next": "14.2.20",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@neondatabase/serverless": "^0.9.4",
+    "drizzle-orm": "^0.30.10",
+    "better-auth": "^1.1.0",
+    "zod": "^3.23.8",
+    "recharts": "^2.12.7",
+    "@tanstack/react-query": "^5.40.0",
+    "react-hot-toast": "^2.4.1",
+    "bcryptjs": "^2.4.3",
+    "nanoid": "^5.0.7",
+    "date-fns": "^3.6.0",
+    "date-fns-tz": "^3.1.3",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/bcryptjs": "^2.4.6",
+    "drizzle-kit": "^0.21.4",
+    "tailwindcss": "^3.4.4",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.20",
+    "tsx": "^4.19.2"
+  }
+}
