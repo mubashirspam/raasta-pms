@@ -215,7 +215,7 @@ export function TargetsClient({
             <div className="space-y-2 text-sm">
               {isCreator ? (
                 <>
-                  <Row label="Team / Raasta Videos" value={String(creatorRow?.teamVideosTarget ?? 0)} />
+                  <Row label="Team Videos" value={String(creatorRow?.teamVideosTarget ?? 0)} />
                   {agentRows.map((r) => (
                     <div key={String(r.agentId)} className="pt-2 mt-2 border-t border-raasta-line">
                       <p className="font-semibold text-raasta-ink text-sm mb-1">
@@ -254,7 +254,7 @@ export function TargetsClient({
               <div className="space-y-3">
                 <CardTitle>Creator Target</CardTitle>
                 <Input
-                  label="Team / Raasta Videos Target"
+                  label="Team Videos Target"
                   type="number"
                   min="0"
                   value={String(field('teamVideosTarget'))}
@@ -377,7 +377,7 @@ export function TargetsClient({
             <Row label="Week" value={selectedWeek?.label ?? ''} />
             {isCreator ? (
               <>
-                <Row label="Team / Raasta Videos" value={String(field('teamVideosTarget'))} />
+                <Row label="Team Videos" value={String(field('teamVideosTarget'))} />
                 {myTeam.map((agent) => (
                   <div key={agent.id} className="pt-2 mt-2 border-t border-raasta-line">
                     <p className="font-semibold text-raasta-ink text-sm mb-1">{agent.fullName}</p>

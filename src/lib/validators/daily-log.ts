@@ -101,7 +101,7 @@ export const creatorLogSchema = z.object({
     .optional(),
   lateReason: z.string().max(500).optional(),
   // Creator KPIs. Reels / Viral / Leads are logged per agent; the day's totals
-  // are the sum of those rows. Team/Raasta videos are the creator's own output.
+  // are the sum of those rows. Team videos are the creator's own output.
   agentMetrics: z
     .array(creatorAgentMetricSchema)
     .min(1, 'Add at least one agent before submitting a log'),

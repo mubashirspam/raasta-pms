@@ -94,10 +94,10 @@ export function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-2xl bg-gold-400 shadow-lift flex items-center justify-center mb-4">
-            <span className="text-raasta-ink font-black text-xl">R</span>
+            <span className="text-raasta-ink font-black text-lg tracking-tight">TN</span>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-raasta-ink">RAASTA Realty</h1>
-          <p className="text-sm text-raasta-muted mt-1">Team Najeeb performance tracker</p>
+          <h1 className="text-xl font-bold tracking-tight text-raasta-ink">Team Najeeb</h1>
+          <p className="text-sm text-raasta-muted mt-1">Performance Tracker</p>
         </div>
 
         <form
