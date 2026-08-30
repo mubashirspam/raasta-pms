@@ -1,18 +1,14 @@
-import { AdminGate } from '@/components/AdminGate';
 import { ManageTeamClient } from './ManageTeamClient';
-import { getMembers } from '@/lib/actions/members';
-import { isAdminAuthenticated } from '@/lib/auth-server';
+import { getMembers, getMembersWithLogins } from '@/lib/actions/members';
+import { requireAdmin } from '@/lib/auth-server';
 import { db } from '@/db';
 
 export default async function ManageTeamPage() {
-  const isAdmin = await isAdminAuthenticated();
+  await requireAdmin();
 
-  if (!isAdmin) {
-    return <AdminGate>{null}</AdminGate>;
-  }
-
-  const [members, categories, positions] = await Promise.all([
+  const [members, logins, categories, positions] = await Promise.all([
     getMembers(),
+    getMembersWithLogins(),
     db.query.employeeCategories.findMany({ orderBy: (t, { asc }) => [asc(t.displayOrder)] }),
     db.query.positions.findMany({ orderBy: (t, { asc }) => [asc(t.displayOrder)] }),
   ]);
@@ -20,6 +16,7 @@ export default async function ManageTeamPage() {
   return (
     <ManageTeamClient
       members={members}
+      logins={logins}
       categories={categories}
       positions={positions}
     />

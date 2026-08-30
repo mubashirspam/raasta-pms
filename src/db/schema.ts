@@ -38,14 +38,6 @@ export const adminSettings = pgTable(
   },
 );
 
-// ─── Admin Sessions ────────────────────────────────────────────────────────────
-export const adminSessions = pgTable('admin_sessions', {
-  id: text('id').primaryKey(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
 
 // ─── Employee Categories ───────────────────────────────────────────────────────
 export const employeeCategories = pgTable('employee_categories', {
@@ -58,8 +50,55 @@ export const employeeCategories = pgTable('employee_categories', {
 export const positions = pgTable('positions', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull().unique(),
+  // Positions belong to one category: Sales Agent has Agent/LER/BDM,
+  // Content Creator has Senior/Junior.
+  categoryId: integer('category_id')
+    .notNull()
+    .references(() => employeeCategories.id, { onDelete: 'restrict' }),
   displayOrder: integer('display_order').notNull().default(0),
 });
+
+// ─── App Users (login) ─────────────────────────────────────────────────────────
+// One row per person who can log in. Admins have no team-member row; every
+// regular user is linked to exactly one. PINs are stored in plain text so the
+// admin can read them back — an explicit product decision for this internal app.
+export const appUsers = pgTable(
+  'app_users',
+  {
+    id: text('id').primaryKey(),
+    username: varchar('username', { length: 60 }).notNull(),
+    pin: varchar('pin', { length: 4 }).notNull(),
+    role: varchar('role', { length: 20 }).notNull().default('user'),
+    memberId: text('member_id').references(() => teamMembers.id, { onDelete: 'cascade' }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    usernameUniq: uniqueIndex('app_users_username_uniq').on(t.username),
+    // One login per team member; admins (null member_id) are exempt.
+    memberUniq: uniqueIndex('app_users_member_uniq')
+      .on(t.memberId)
+      .where(sql`${t.memberId} is not null`),
+  }),
+);
+
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => appUsers.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ipAddress: varchar('ip_address', { length: 64 }),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('sessions_user_idx').on(t.userId),
+  }),
+);
 
 // ─── Team Members ──────────────────────────────────────────────────────────────
 export const teamMembers = pgTable(
@@ -74,8 +113,6 @@ export const teamMembers = pgTable(
     positionId: integer('position_id')
       .notNull()
       .references(() => positions.id, { onDelete: 'restrict' }),
-    teamName: varchar('team_name', { length: 100 }),
-    joiningDate: date('joining_date'),
     isActive: boolean('is_active').notNull().default(true),
     displayOrder: integer('display_order').notNull().default(0),
     lastSubmissionAt: timestamp('last_submission_at', { withTimezone: true }),
@@ -107,6 +144,31 @@ export const operationalWeeks = pgTable(
   }),
 );
 
+// ─── Creator Team ──────────────────────────────────────────────────────────────
+// A content creator's roster of sales agents. The creator manages this on the
+// Targets page and it pre-fills their weekly target form.
+export const creatorTeamAgents = pgTable(
+  'creator_team_agents',
+  {
+    id: serial('id').primaryKey(),
+    creatorId: text('creator_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    displayOrder: integer('display_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    creatorAgentUniq: uniqueIndex('creator_team_agents_creator_agent_uniq').on(
+      t.creatorId,
+      t.agentId,
+    ),
+    creatorIdx: index('creator_team_agents_creator_idx').on(t.creatorId),
+  }),
+);
+
 // ─── Weekly Targets ────────────────────────────────────────────────────────────
 export const weeklyTargets = pgTable(
   'weekly_targets',
@@ -118,17 +180,19 @@ export const weeklyTargets = pgTable(
     weekId: integer('week_id')
       .notNull()
       .references(() => operationalWeeks.id, { onDelete: 'restrict' }),
+    // Creator targets are set per agent on the creator's team: one row per
+    // creator + week + agent. Sales targets leave this null.
+    agentId: text('agent_id').references(() => teamMembers.id, { onDelete: 'cascade' }),
     // Sales fields
     connectedCallsTarget: integer('connected_calls_target'),
     videoCallsTarget: integer('video_calls_target'),
     faceToFaceTarget: integer('face_to_face_target'),
     revenueTarget: decimal('revenue_target', { precision: 14, scale: 2 }),
-    developerVisitsTarget: integer('developer_visits_target'),
     // Creator fields
     reelsTarget: integer('reels_target'),
     viralVideosTarget: integer('viral_videos_target'),
     leadsTarget: integer('leads_target'),
-    instagramVideosTarget: integer('instagram_videos_target'),
+    teamVideosTarget: integer('team_videos_target'),
     // Position / status
     positionId: integer('position_id').references(() => positions.id),
     positionFlagged: boolean('position_flagged').notNull().default(false),
@@ -137,9 +201,17 @@ export const weeklyTargets = pgTable(
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    memberWeekUniq: uniqueIndex('weekly_targets_member_week_uniq').on(t.memberId, t.weekId),
+    // Postgres treats NULLs as distinct, so a plain composite unique would let
+    // duplicate sales rows through. Two partial indexes instead.
+    memberWeekUniq: uniqueIndex('weekly_targets_member_week_uniq')
+      .on(t.memberId, t.weekId)
+      .where(sql`${t.agentId} is null`),
+    memberWeekAgentUniq: uniqueIndex('weekly_targets_member_week_agent_uniq')
+      .on(t.memberId, t.weekId, t.agentId)
+      .where(sql`${t.agentId} is not null`),
     memberIdx: index('weekly_targets_member_idx').on(t.memberId),
     weekIdx: index('weekly_targets_week_idx').on(t.weekId),
+    agentIdx: index('weekly_targets_agent_idx').on(t.agentId),
   }),
 );
 
@@ -182,6 +254,11 @@ export const dailyLogs = pgTable(
     lateReason: text('late_reason'),
     organicCalls: integer('organic_calls').notNull().default(0),
     marketingCalls: integer('marketing_calls').notNull().default(0),
+    // Time spent on the phone, stored as whole minutes. The form collects
+    // hours and minutes separately; organic and reassigned are tracked apart
+    // because they are different kinds of work. No target is set against these.
+    organicCallMinutes: integer('organic_call_minutes').notNull().default(0),
+    marketingCallMinutes: integer('marketing_call_minutes').notNull().default(0),
     // computed in application layer: organic + marketing
     connectedCalls: integer('connected_calls').notNull().default(0),
     videoCalls: integer('video_calls').notNull().default(0),
@@ -189,6 +266,8 @@ export const dailyLogs = pgTable(
     reelsUploaded: integer('reels_uploaded').notNull().default(0),
     leadsReceived: integer('leads_received').notNull().default(0),
     salesRevenue: decimal('sales_revenue', { precision: 14, scale: 2 }).notNull().default('0'),
+    // LER/BDM also report revenue brought in by their team.
+    teamRevenue: decimal('team_revenue', { precision: 14, scale: 2 }),
     learnedToday: varchar('learned_today', { length: 150 }),
     issuesToday: varchar('issues_today', { length: 250 }),
     status: varchar('status', { length: 20 }).notNull().default('submitted'),
@@ -235,6 +314,29 @@ export const creatorDailyMetrics = pgTable(
   },
 );
 
+// ─── Creator Per-Agent Daily Metrics ───────────────────────────────────────────
+// A creator logs Reels / Viral / Leads separately for each agent on their team.
+// creator_daily_metrics keeps the roll-up totals for the day.
+export const creatorAgentDailyMetrics = pgTable(
+  'creator_agent_daily_metrics',
+  {
+    id: serial('id').primaryKey(),
+    logId: integer('log_id')
+      .notNull()
+      .references(() => dailyLogs.id, { onDelete: 'cascade' }),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    reelsGiven: integer('reels_given').notNull().default(0),
+    viralVideos: integer('viral_videos').notNull().default(0),
+    leadsGenerated: integer('leads_generated').notNull().default(0),
+  },
+  (t) => ({
+    logAgentUniq: uniqueIndex('creator_agent_daily_metrics_log_agent_uniq').on(t.logId, t.agentId),
+    logIdx: index('creator_agent_daily_metrics_log_idx').on(t.logId),
+  }),
+);
+
 // ─── Creator Shoot Participants ────────────────────────────────────────────────
 export const creatorShootParticipants = pgTable(
   'creator_shoot_participants',
@@ -253,70 +355,40 @@ export const creatorShootParticipants = pgTable(
 );
 
 // ─── Viral Video Records ───────────────────────────────────────────────────────
-export const viralVideoRecords = pgTable(
-  'viral_video_records',
-  {
-    id: serial('id').primaryKey(),
-    logId: integer('log_id')
-      .notNull()
-      .references(() => dailyLogs.id, { onDelete: 'cascade' }),
-    title: varchar('title', { length: 300 }).notNull(),
-    contentOwnerId: text('content_owner_id').references(() => teamMembers.id, {
-      onDelete: 'set null',
-    }),
-    platform: varchar('platform', { length: 50 }),
-    videoUrl: text('video_url').notNull(),
-    contentId: varchar('content_id', { length: 200 }),
-    crossed100kAt: date('crossed_100k_at'),
-    currentViews: integer('current_views').notNull().default(0),
-  },
-  (t) => ({
-    videoUrlUniq: uniqueIndex('viral_video_records_url_uniq').on(t.videoUrl),
-    logIdx: index('viral_video_records_log_idx').on(t.logId),
-  }),
-);
+export const VIRAL_PLATFORMS = [
+  'YouTube',
+  'Instagram',
+  'TikTok',
+  'Facebook',
+  'LinkedIn',
+] as const;
 
-// ─── Lead Distributions ────────────────────────────────────────────────────────
-export const leadDistributions = pgTable(
-  'lead_distributions',
+// Viral videos (100k+ views) counted per agent, per platform. An agent's viral
+// total for the day is the sum of their platform counts.
+export const viralPlatformCounts = pgTable(
+  'viral_platform_counts',
   {
     id: serial('id').primaryKey(),
     logId: integer('log_id')
       .notNull()
       .references(() => dailyLogs.id, { onDelete: 'cascade' }),
-    recipientId: text('recipient_id').references(() => teamMembers.id, { onDelete: 'set null' }),
-    recipientLabel: varchar('recipient_label', { length: 200 }),
-    leadsCount: integer('leads_count').notNull(),
-    note: text('note'),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    platform: varchar('platform', { length: 50 }).notNull(),
+    count: integer('count').notNull().default(0),
   },
   (t) => ({
-    logRecipientUniq: uniqueIndex('lead_distributions_log_recipient_uniq').on(
+    logAgentPlatformUniq: uniqueIndex('viral_platform_counts_log_agent_platform_uniq').on(
       t.logId,
-      t.recipientId,
+      t.agentId,
+      t.platform,
     ),
-    logIdx: index('lead_distributions_log_idx').on(t.logId),
+    logIdx: index('viral_platform_counts_log_idx').on(t.logId),
   }),
 );
 
-// ─── Instagram Video Records ───────────────────────────────────────────────────
-export const instagramVideoRecords = pgTable(
-  'instagram_video_records',
-  {
-    id: serial('id').primaryKey(),
-    logId: integer('log_id')
-      .notNull()
-      .references(() => dailyLogs.id, { onDelete: 'cascade' }),
-    title: varchar('title', { length: 300 }).notNull(),
-    status: varchar('status', { length: 50 }).notNull(),
-    platform: varchar('platform', { length: 50 }),
-    link: text('link'),
-    contentRef: varchar('content_ref', { length: 200 }),
-    note: text('note'),
-  },
-  (t) => ({
-    logIdx: index('instagram_video_records_log_idx').on(t.logId),
-  }),
-);
+
 
 // ─── Extra Work Records ────────────────────────────────────────────────────────
 export const extraWorkRecords = pgTable(
@@ -430,9 +502,10 @@ export const auditLog = pgTable(
 
 // ─── Type exports ──────────────────────────────────────────────────────────────
 export type AdminSettings = typeof adminSettings.$inferSelect;
-export type AdminSession = typeof adminSessions.$inferSelect;
 export type EmployeeCategory = typeof employeeCategories.$inferSelect;
 export type Position = typeof positions.$inferSelect;
+export type AppUser = typeof appUsers.$inferSelect;
+export type Session = typeof sessions.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type NewTeamMember = typeof teamMembers.$inferInsert;
 export type OperationalWeek = typeof operationalWeeks.$inferSelect;
@@ -441,9 +514,8 @@ export type NewWeeklyTarget = typeof weeklyTargets.$inferInsert;
 export type DailyLog = typeof dailyLogs.$inferSelect;
 export type NewDailyLog = typeof dailyLogs.$inferInsert;
 export type CreatorDailyMetrics = typeof creatorDailyMetrics.$inferSelect;
-export type ViralVideoRecord = typeof viralVideoRecords.$inferSelect;
-export type LeadDistribution = typeof leadDistributions.$inferSelect;
-export type InstagramVideoRecord = typeof instagramVideoRecords.$inferSelect;
+export type CreatorAgentDailyMetrics = typeof creatorAgentDailyMetrics.$inferSelect;
+export type ViralPlatformCount = typeof viralPlatformCounts.$inferSelect;
 export type ExtraWorkRecord = typeof extraWorkRecords.$inferSelect;
 export type CorrectionRequest = typeof correctionRequests.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;

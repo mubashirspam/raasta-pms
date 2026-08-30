@@ -8,11 +8,21 @@
   }
 
   body {
-    @apply bg-raasta-black text-white antialiased;
+    @apply bg-raasta-bg text-raasta-ink antialiased;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  /* Number inputs: hide the spinners so numeric fields read as plain values. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
   }
 }
 
@@ -23,5 +33,9 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  /* Safe-area padding for the mobile tab bar on notched devices. */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
   }
 }

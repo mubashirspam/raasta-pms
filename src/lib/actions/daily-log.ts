@@ -6,13 +6,13 @@ import {
   dailyLogs,
   developerVisits,
   creatorDailyMetrics,
+  creatorAgentDailyMetrics,
   creatorShootParticipants,
-  viralVideoRecords,
-  leadDistributions,
-  instagramVideoRecords,
+  viralPlatformCounts,
   extraWorkRecords,
   teamMembers,
   workingDayExceptions,
+  creatorTeamAgents,
 } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { salesLogSchema, creatorLogSchema } from '@/lib/validators/daily-log';
@@ -82,12 +82,15 @@ export async function submitSalesLog(
         lateReason: data.lateReason,
         organicCalls: data.organicCalls,
         marketingCalls: data.marketingCalls,
+        organicCallMinutes: data.organicCallMinutes,
+        marketingCallMinutes: data.marketingCallMinutes,
         connectedCalls,
         videoCalls: data.videoCalls,
         faceToFace: data.faceToFace,
         reelsUploaded: data.reelsUploaded,
         leadsReceived: data.leadsReceived,
         salesRevenue: String(data.salesRevenue),
+        teamRevenue: data.teamRevenue === undefined ? null : String(data.teamRevenue),
         learnedToday: data.learnedToday,
         issuesToday: data.issuesToday,
         referenceNumber,
@@ -143,19 +146,13 @@ export async function submitCreatorLog(
     return { success: false, error: 'Log already submitted for this date.' };
   }
 
-  // Viral video URL deduplication check
-  if (data.viralVideoRows?.length) {
-    for (const vr of data.viralVideoRows) {
-      const dupe = await db.query.viralVideoRecords.findFirst({
-        where: eq(viralVideoRecords.videoUrl, vr.videoUrl),
-      });
-      if (dupe) {
-        return {
-          success: false,
-          error: `Viral video URL already recorded: ${vr.videoUrl}`,
-        };
-      }
-    }
+  // Only agents actually on this creator's team may be logged.
+  const roster = await db.query.creatorTeamAgents.findMany({
+    where: eq(creatorTeamAgents.creatorId, data.memberId),
+  });
+  const rosterIds = new Set(roster.map((r) => r.agentId));
+  if (data.agentMetrics.some((m) => !rosterIds.has(m.agentId))) {
+    return { success: false, error: 'That agent is not on your team.' };
   }
 
   const referenceNumber = generateRef('LOG');
@@ -186,64 +183,44 @@ export async function submitCreatorLog(
 
     const logId = log.id;
 
-    // Creator metrics
+    // Creator metrics — the day's roll-up, summed from the per-agent rows.
     await tx.insert(creatorDailyMetrics).values({
       logId,
-      reelsGiven: data.reelsGiven,
-      viralVideos: data.viralVideos,
-      leadsGenerated: data.leadsGenerated,
+      reelsGiven: data.agentMetrics.reduce((s, m) => s + m.reelsGiven, 0),
+      viralVideos: data.agentMetrics.reduce(
+        (s, m) => s + m.viralPlatforms.reduce((x, r) => x + r.count, 0),
+        0,
+      ),
+      leadsGenerated: data.agentMetrics.reduce((s, m) => s + m.leadsGenerated, 0),
       instagramVideos: data.instagramVideos,
       remarks: data.remarks,
     });
+
+    // Per-agent breakdown
+    await tx.insert(creatorAgentDailyMetrics).values(
+      data.agentMetrics.map((m) => ({
+        logId,
+        agentId: m.agentId,
+        reelsGiven: m.reelsGiven,
+        viralVideos: m.viralPlatforms.reduce((x, r) => x + r.count, 0),
+        leadsGenerated: m.leadsGenerated,
+      })),
+    );
+
+    // Which platform each agent's viral videos landed on
+    const platformRows = data.agentMetrics.flatMap((m) =>
+      m.viralPlatforms
+        .filter((r) => r.count > 0)
+        .map((r) => ({ logId, agentId: m.agentId, platform: r.platform, count: r.count })),
+    );
+    if (platformRows.length) {
+      await tx.insert(viralPlatformCounts).values(platformRows);
+    }
 
     // Shoot participants
     if (data.shootParticipantIds?.length) {
       await tx.insert(creatorShootParticipants).values(
         data.shootParticipantIds.map((memberId) => ({ logId, memberId })),
-      );
-    }
-
-    // Viral video details
-    if (data.viralVideoRows?.length) {
-      await tx.insert(viralVideoRecords).values(
-        data.viralVideoRows.map((vr) => ({
-          logId,
-          title: vr.title,
-          contentOwnerId: vr.contentOwnerId ?? null,
-          platform: vr.platform ?? null,
-          videoUrl: vr.videoUrl,
-          contentId: vr.contentId ?? null,
-          crossed100kAt: vr.crossed100kAt ?? null,
-          currentViews: vr.currentViews,
-        })),
-      );
-    }
-
-    // Lead distributions
-    if (data.leadDistRows?.length) {
-      await tx.insert(leadDistributions).values(
-        data.leadDistRows.map((ld) => ({
-          logId,
-          recipientId: ld.recipientId ?? null,
-          recipientLabel: ld.recipientLabel ?? null,
-          leadsCount: ld.leadsCount,
-          note: ld.note ?? null,
-        })),
-      );
-    }
-
-    // IG video records
-    if (data.igVideoRows?.length) {
-      await tx.insert(instagramVideoRecords).values(
-        data.igVideoRows.map((ig) => ({
-          logId,
-          title: ig.title,
-          status: ig.status,
-          platform: ig.platform ?? null,
-          link: ig.link || null,
-          contentRef: ig.contentRef ?? null,
-          note: ig.note ?? null,
-        })),
       );
     }
 

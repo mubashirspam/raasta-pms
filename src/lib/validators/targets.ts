@@ -11,19 +11,49 @@ export const salesTargetSchema = z.object({
   videoCallsTarget: positiveInt,
   faceToFaceTarget: positiveInt,
   revenueTarget: positiveDec,
-  developerVisitsTarget: positiveInt,
   // LER/BDM optional team revenue
   teamRevenueAmount: positiveDec.optional(),
 });
 
-export const creatorTargetSchema = z.object({
-  memberId: z.string().min(1, 'Member required'),
-  weekId: z.coerce.number().int().positive('Week required'),
+// One block of numbers per agent on the creator's team.
+export const creatorAgentTargetSchema = z.object({
+  agentId: z.string().min(1, 'Agent required'),
   reelsTarget: positiveInt,
   viralVideosTarget: positiveInt,
   leadsTarget: positiveInt,
-  instagramVideosTarget: positiveInt,
+});
+
+export const creatorTargetSchema = z
+  .object({
+    memberId: z.string().min(1, 'Member required'),
+    weekId: z.coerce.number().int().positive('Week required'),
+    // Team/Raasta videos are the creator's own output, not tied to an agent.
+    teamVideosTarget: positiveInt,
+    agentTargets: z
+      .array(creatorAgentTargetSchema)
+      .min(1, 'Add at least one agent before submitting a target'),
+  })
+  .superRefine((val, ctx) => {
+    const seen = new Set<string>();
+    for (const t of val.agentTargets) {
+      if (seen.has(t.agentId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'The same agent appears twice',
+          path: ['agentTargets'],
+        });
+        return;
+      }
+      seen.add(t.agentId);
+    }
+  });
+
+export const creatorTeamAgentSchema = z.object({
+  creatorId: z.string().min(1, 'Creator required'),
+  agentId: z.string().min(1, 'Agent required'),
 });
 
 export type SalesTargetInput = z.infer<typeof salesTargetSchema>;
 export type CreatorTargetInput = z.infer<typeof creatorTargetSchema>;
+export type CreatorAgentTargetInput = z.infer<typeof creatorAgentTargetSchema>;
+export type CreatorTeamAgentInput = z.infer<typeof creatorTeamAgentSchema>;
