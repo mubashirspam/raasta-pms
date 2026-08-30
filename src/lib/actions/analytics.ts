@@ -16,110 +16,35 @@ import {
 import { eq, and, gte, lte, sum, count, sql } from 'drizzle-orm';
 import { isAdminAuthenticated } from '@/lib/auth-server';
 import { weekOverlapFactor, type DateRange } from '@/lib/domain/ranges';
+import {
+  num as n,
+  metric,
+  stat,
+  emptyTargets,
+  accumulateTarget,
+  buildMemberRows,
+  type TargetTotals,
+  type MetricRow,
+  type StatRow,
+  type PlatformCount,
+  type MemberKind,
+  type MemberAnalytics,
+  type RangeAnalytics,
+} from '@/lib/domain/metrics';
 
-// ─── Shapes ────────────────────────────────────────────────────────────────────
+// Shapes, row builders and target maths live in the domain module so the
+// member's own home-screen summary builds identical rows.
+export type {
+  MetricFormat,
+  MetricRow,
+  PlatformCount,
+  StatRow,
+  MemberKind,
+  MemberAnalytics,
+  RangeAnalytics,
+} from '@/lib/domain/metrics';
 
-export type MetricFormat = 'number' | 'currency';
-
-export interface MetricRow {
-  key: string;
-  label: string;
-  actual: number;
-  /** Prorated target for the range. 0 means "no target was set". */
-  target: number;
-  format: MetricFormat;
-}
-
-export interface PlatformCount {
-  platform: string;
-  count: number;
-}
-
-/**
- * A running total with no target behind it — call time and lead volume are
- * tracked but never committed to in the weekly target form.
- */
-export interface StatRow {
-  key: string;
-  label: string;
-  value: number;
-  format: 'number' | 'duration';
-}
-
-export type MemberKind = 'sales' | 'creator' | 'other';
-
-export interface MemberAnalytics {
-  memberId: string;
-  fullName: string;
-  memberCode: string;
-  categoryName: string;
-  positionName: string;
-  kind: MemberKind;
-  metrics: MetricRow[];
-  cumulative: StatRow[];
-  /** Viral videos this person produced (creator) or was credited with (agent). */
-  platforms: PlatformCount[];
-  viralTotal: number;
-  logsSubmitted: number;
-  daysPresent: number;
-  daysAbsent: number;
-}
-
-export interface RangeAnalytics {
-  range: DateRange;
-  totals: MetricRow[];
-  cumulative: StatRow[];
-  platforms: PlatformCount[];
-  memberSummaries: MemberAnalytics[];
-  cumulativeSeries: Array<{ date: string; cumulative: number }>;
-  revenueActual: number;
-  revenueTarget: number;
-}
-
-const n = (v: unknown) => Number(v ?? 0);
-
-function metric(
-  key: string,
-  label: string,
-  actual: number,
-  target: number,
-  format: MetricFormat = 'number',
-): MetricRow {
-  return { key, label, actual, target, format };
-}
-
-function stat(
-  key: string,
-  label: string,
-  value: number,
-  format: StatRow['format'] = 'number',
-): StatRow {
-  return { key, label, value, format };
-}
-
-// ─── Prorated targets ──────────────────────────────────────────────────────────
-
-interface TargetTotals {
-  connectedCalls: number;
-  videoCalls: number;
-  faceToFace: number;
-  revenue: number;
-  reels: number;
-  viral: number;
-  leads: number;
-  teamVideos: number;
-}
-
-const emptyTargets = (): TargetTotals => ({
-  connectedCalls: 0,
-  videoCalls: 0,
-  faceToFace: 0,
-  revenue: 0,
-  reels: 0,
-  viral: 0,
-  leads: 0,
-  teamVideos: 0,
-});
+type LocalTargetTotals = TargetTotals;
 
 /**
  * Weekly targets that overlap the range, each scaled to the share of its week
@@ -153,8 +78,8 @@ async function collectTargets(range: DateRange) {
       ),
     );
 
-  const byOwner = new Map<string, TargetTotals>();
-  const byAgent = new Map<string, TargetTotals>();
+  const byOwner = new Map<string, LocalTargetTotals>();
+  const byAgent = new Map<string, LocalTargetTotals>();
   const company = emptyTargets();
 
   for (const r of rows) {
@@ -162,25 +87,10 @@ async function collectTargets(range: DateRange) {
     if (f <= 0) continue;
 
     const owner = byOwner.get(r.memberId) ?? emptyTargets();
-
-    owner.connectedCalls += n(r.connectedCallsTarget) * f;
-    owner.videoCalls += n(r.videoCallsTarget) * f;
-    owner.faceToFace += n(r.faceToFaceTarget) * f;
-    owner.revenue += n(r.revenueTarget) * f;
-    owner.reels += n(r.reelsTarget) * f;
-    owner.viral += n(r.viralVideosTarget) * f;
-    owner.leads += n(r.leadsTarget) * f;
-    owner.teamVideos += n(r.teamVideosTarget) * f;
+    accumulateTarget(owner, r, f);
     byOwner.set(r.memberId, owner);
 
-    company.connectedCalls += n(r.connectedCallsTarget) * f;
-    company.videoCalls += n(r.videoCallsTarget) * f;
-    company.faceToFace += n(r.faceToFaceTarget) * f;
-    company.revenue += n(r.revenueTarget) * f;
-    company.reels += n(r.reelsTarget) * f;
-    company.viral += n(r.viralVideosTarget) * f;
-    company.leads += n(r.leadsTarget) * f;
-    company.teamVideos += n(r.teamVideosTarget) * f;
+    accumulateTarget(company, r, f);
 
     // Creator rows carry an agentId: that agent is the one being delivered for.
     if (r.agentId) {
@@ -354,43 +264,20 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         ? 'sales'
         : 'other';
 
-    const metrics: MetricRow[] = [];
-    const cumulative: StatRow[] = [];
-    let platforms: PlatformCount[];
-    let viralTotal: number;
+    const platforms: PlatformCount[] = orderPlatforms(
+      kind === 'creator' ? platformsByCreator.get(m.id) : platformsByAgent.get(m.id),
+    );
+    const viralTotal = platforms.reduce((a, p) => a + p.count, 0);
 
-    if (kind === 'creator') {
-      platforms = orderPlatforms(platformsByCreator.get(m.id));
-      viralTotal = platforms.reduce((a, p) => a + p.count, 0);
-      metrics.push(
-        metric('reels', 'Reels Given', n(c?.reels), ownTargets.reels),
-        metric('viral', 'Viral Videos', viralTotal, ownTargets.viral),
-        metric('leads', 'Leads Generated', n(c?.leads), ownTargets.leads),
-        metric('teamVideos', 'Team Videos', n(c?.teamVideos), ownTargets.teamVideos),
-      );
-    } else {
-      platforms = orderPlatforms(platformsByAgent.get(m.id));
-      viralTotal = platforms.reduce((a, p) => a + p.count, 0);
-      metrics.push(
-        metric('connectedCalls', 'Connected Calls', n(s?.connectedCalls), ownTargets.connectedCalls),
-        metric('videoCalls', 'Video Calls', n(s?.videoCalls), ownTargets.videoCalls),
-        metric('faceToFace', 'Face-to-Face', n(s?.faceToFace), ownTargets.faceToFace),
-        metric('revenue', 'Revenue', n(s?.revenue), ownTargets.revenue, 'currency'),
-        // Delivered by the content creators who carry this agent on their team.
-        metric('reelsReceived', 'Reels From Creators', n(credited?.reels), agentTargets.reels),
-        metric('viralReceived', 'Viral Videos', viralTotal, agentTargets.viral),
-        metric('leadsReceived', 'Leads From Creators', n(credited?.leads), agentTargets.leads),
-      );
-
-      const organicMins = n(s?.organicCallMinutes);
-      const marketingMins = n(s?.marketingCallMinutes);
-      cumulative.push(
-        stat('organicCallTime', 'Organic Call Time', organicMins, 'duration'),
-        stat('reassignedCallTime', 'Reassigned Call Time', marketingMins, 'duration'),
-        stat('totalCallTime', 'Total Call Time', organicMins + marketingMins, 'duration'),
-        stat('leadsLogged', 'Leads Received', n(s?.leadsReceived)),
-      );
-    }
+    const { metrics, cumulative } = buildMemberRows({
+      kind,
+      sales: s,
+      creator: c,
+      credited,
+      viralTotal,
+      ownTargets,
+      agentTargets,
+    });
 
     return {
       memberId: m.id,
