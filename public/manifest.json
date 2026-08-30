@@ -1,6 +1,6 @@
 {
-  "name": "RAASTA Tracker — Team Najeeb",
-  "short_name": "RAASTA",
+  "name": "Team Najeeb — Performance Tracker",
+  "short_name": "Team Najeeb",
   "description": "Performance tracking for Team Najeeb Sales Agents and Content Creators",
   "start_url": "/",
   "display": "standalone",

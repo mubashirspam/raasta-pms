@@ -27,7 +27,7 @@ export const creatorTargetSchema = z
   .object({
     memberId: z.string().min(1, 'Member required'),
     weekId: z.coerce.number().int().positive('Week required'),
-    // Team/Raasta videos are the creator's own output, not tied to an agent.
+    // Team videos are the creator's own output, not tied to an agent.
     teamVideosTarget: positiveInt,
     agentTargets: z
       .array(creatorAgentTargetSchema)

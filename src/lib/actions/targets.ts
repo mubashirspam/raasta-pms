@@ -139,7 +139,7 @@ export async function submitCreatorTarget(
 
   const referenceNumber = generateRef('TGT');
 
-  // One creator-level row (agent_id null) carrying the Team/Raasta video
+  // One creator-level row (agent_id null) carrying the team video
   // target, plus one row per agent. All of it lands together or not at all.
   await db.transaction(async (tx) => {
     await tx.insert(weeklyTargets).values([

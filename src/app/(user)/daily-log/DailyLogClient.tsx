@@ -478,7 +478,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                       </div>
                     )}
                     <div>
-                      <Input label="Team / Raasta Videos Given" type="number" min="0"
+                      <Input label="Team Videos Given" type="number" min="0"
                         value={instagramVideos}
                         onChange={(e) => setInstagramVideos(+e.target.value)} />
                     </div>

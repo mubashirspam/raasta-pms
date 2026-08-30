@@ -364,7 +364,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                 <Stat label="Reels given" value={cm.reelsGiven} />
                 <Stat label="Viral videos" value={cm.viralVideos} />
                 <Stat label="Leads generated" value={cm.leadsGenerated} />
-                <Stat label="Team / Raasta videos" value={cm.instagramVideos} />
+                <Stat label="Team videos" value={cm.instagramVideos} />
               </div>
               {cm.remarks && (
                 <p className="text-sm text-raasta-ink mt-3">

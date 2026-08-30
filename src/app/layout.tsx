@@ -7,7 +7,7 @@ import { Providers } from '@/components/Providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'RAASTA Tracker — Team Najeeb',
+  title: 'Team Najeeb — Performance Tracker',
   description: 'Performance tracking for Team Najeeb Sales Agents and Content Creators',
   manifest: '/manifest.json',
 };

@@ -366,7 +366,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         metric('reels', 'Reels Given', n(c?.reels), ownTargets.reels),
         metric('viral', 'Viral Videos', viralTotal, ownTargets.viral),
         metric('leads', 'Leads Generated', n(c?.leads), ownTargets.leads),
-        metric('teamVideos', 'Team / Raasta Videos', n(c?.teamVideos), ownTargets.teamVideos),
+        metric('teamVideos', 'Team Videos', n(c?.teamVideos), ownTargets.teamVideos),
       );
     } else {
       platforms = orderPlatforms(platformsByAgent.get(m.id));
@@ -431,7 +431,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     metric('leads', 'Leads Generated', sumOf(creatorRows, (r) => r.leads), targets.company.leads),
     metric(
       'teamVideos',
-      'Team / Raasta Videos',
+      'Team Videos',
       sumOf(creatorRows, (r) => r.teamVideos),
       targets.company.teamVideos,
     ),
