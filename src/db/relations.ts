@@ -157,6 +157,11 @@ export const viralPlatformCountsRelations = relations(viralPlatformCounts, ({ on
     fields: [viralPlatformCounts.logId],
     references: [dailyLogs.id],
   }),
+  agent: one(teamMembers, {
+    fields: [viralPlatformCounts.agentId],
+    references: [teamMembers.id],
+    relationName: 'viralAgent',
+  }),
 }));
 
 export const extraWorkRecordsRelations = relations(extraWorkRecords, ({ one }) => ({

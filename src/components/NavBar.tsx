@@ -10,6 +10,7 @@ import {
   Target,
   ClipboardList,
   BarChart3,
+  CalendarDays,
   Users,
   LogOut,
   type LucideIcon,
@@ -29,6 +30,7 @@ const USER_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { href: '/analytics', label: 'Analytics', Icon: BarChart3 },
+  { href: '/team-logs', label: 'Daily Logs', Icon: CalendarDays },
   { href: '/manage-team', label: 'Team', Icon: Users },
 ];
 
