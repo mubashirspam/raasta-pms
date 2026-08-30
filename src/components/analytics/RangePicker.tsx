@@ -2,11 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { cn, MONTHS } from '@/lib/domain/helpers';
+import { cn } from '@/lib/domain/helpers';
+import { MonthStrip } from '@/components/ui/MonthStrip';
 import type { OperationalWeek } from '@/db/schema';
 
 interface Props {
   basePath: string;
+  /** Today's month/year in Dubai — anchors the month strip. */
+  currentMonth: number;
+  currentYear: number;
+  /** The month currently in view. */
   month: number;
   year: number;
   preset: string;
@@ -28,39 +33,40 @@ const chip = (active: boolean) =>
  * rolling windows, and an explicit from–to range. Everything lives in the URL
  * so a period is linkable and survives a refresh.
  */
-export function RangePicker({ basePath, month, year, preset, weeks, from, to }: Props) {
+export function RangePicker({
+  basePath,
+  currentMonth,
+  currentYear,
+  month,
+  year,
+  preset,
+  weeks,
+  from,
+  to,
+}: Props) {
   const router = useRouter();
   const [customFrom, setCustomFrom] = useState(from);
   const [customTo, setCustomTo] = useState(to);
   const [showCustom, setShowCustom] = useState(preset === 'custom');
 
+  // month + year always ride along, so switching preset never loses the anchor
+  // the month strip and week chips are drawn from.
   const go = (params: Record<string, string | number>) => {
     const qs = new URLSearchParams(
-      Object.entries(params).map(([k, v]) => [k, String(v)]),
+      Object.entries({ month, year, ...params }).map(([k, v]) => [k, String(v)]),
     );
     router.push(`${basePath}?${qs.toString()}`);
   };
 
-  // Six months back from today, oldest first.
-  const monthChips = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(year, month - 1 - (5 - i), 1);
-    return { m: d.getMonth() + 1, y: d.getFullYear() };
-  });
-
   return (
     <div className="space-y-2">
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-        {monthChips.map(({ m, y }) => (
-          <button
-            key={`${y}-${m}`}
-            type="button"
-            onClick={() => go({ preset: 'month', month: m, year: y })}
-            className={chip(preset === 'month' && m === month && y === year)}
-          >
-            {MONTHS[m].slice(0, 3)} {String(y).slice(2)}
-          </button>
-        ))}
-      </div>
+      <MonthStrip
+        currentMonth={currentMonth}
+        currentYear={currentYear}
+        month={month}
+        year={year}
+        onSelect={(m, y) => go({ preset: 'month', month: m, year: y })}
+      />
 
       <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
         <button

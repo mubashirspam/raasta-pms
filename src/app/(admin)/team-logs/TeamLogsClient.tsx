@@ -9,6 +9,7 @@ import { parseDateString } from '@/lib/domain/weeks';
 import type { CalendarDay, DayState, LogDetail } from '@/lib/actions/team-logs';
 import type { TeamMember, EmployeeCategory, Position } from '@/db/schema';
 import { Search, CalendarDays } from 'lucide-react';
+import { MonthStrip } from '@/components/ui/MonthStrip';
 
 type MemberWithRelations = TeamMember & { category: EmployeeCategory; position: Position };
 
@@ -17,6 +18,9 @@ interface Props {
   memberId: string | null;
   month: number;
   year: number;
+  /** Today's month/year in Dubai — anchors the month strip. */
+  currentMonth: number;
+  currentYear: number;
   calendar: CalendarDay[];
   detail: LogDetail | null;
   selectedDate: string | null;
@@ -47,6 +51,8 @@ export function TeamLogsClient({
   memberId,
   month,
   year,
+  currentMonth,
+  currentYear,
   calendar,
   detail,
   selectedDate,
@@ -75,11 +81,6 @@ export function TeamLogsClient({
     }
     router.push(`/team-logs?${qs.toString()}`);
   };
-
-  const monthChips = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(year, month - 1 - (5 - i), 1);
-    return { m: d.getMonth() + 1, y: d.getFullYear() };
-  });
 
   const logged = calendar.filter((d) => d.state === 'present').length;
   const absent = calendar.filter((d) => d.state === 'absent').length;
@@ -154,23 +155,13 @@ export function TeamLogsClient({
       {selectedMember && (
         <>
           {/* ── 2. Which month ───────────────────────────────────────────────── */}
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-            {monthChips.map(({ m, y }) => (
-              <button
-                key={`${y}-${m}`}
-                type="button"
-                onClick={() => go({ memberId, month: m, year: y })}
-                className={cn(
-                  'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
-                  m === month && y === year
-                    ? 'bg-gold-400 text-raasta-ink border-gold-400'
-                    : 'bg-raasta-surface border-raasta-border text-raasta-muted hover:text-raasta-ink hover:border-raasta-faint/40',
-                )}
-              >
-                {MONTHS[m].slice(0, 3)} {String(y).slice(2)}
-              </button>
-            ))}
-          </div>
+          <MonthStrip
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            month={month}
+            year={year}
+            onSelect={(m, y) => go({ memberId, month: m, year: y })}
+          />
 
           {/* ── 3. Which day ─────────────────────────────────────────────────── */}
           <Card>

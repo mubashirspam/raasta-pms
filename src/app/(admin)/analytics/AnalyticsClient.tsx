@@ -40,6 +40,8 @@ interface Props {
   pendingCorrections: CorrectionWithMember[];
   month: number;
   year: number;
+  currentMonth: number;
+  currentYear: number;
   preset: string;
 }
 
@@ -61,6 +63,8 @@ export function AnalyticsClient({
   pendingCorrections,
   month,
   year,
+  currentMonth,
+  currentYear,
   preset,
 }: Props) {
   const router = useRouter();
@@ -156,6 +160,8 @@ export function AnalyticsClient({
 
       <RangePicker
         basePath="/analytics"
+        currentMonth={currentMonth}
+        currentYear={currentYear}
         month={month}
         year={year}
         preset={preset}

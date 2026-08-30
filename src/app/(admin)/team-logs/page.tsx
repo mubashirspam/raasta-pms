@@ -44,6 +44,8 @@ export default async function TeamLogsPage({
       memberId={memberId}
       month={month}
       year={year}
+      currentMonth={currentMonth}
+      currentYear={currentYear}
       calendar={calendar}
       detail={detail}
       selectedDate={searchParams.date ?? null}

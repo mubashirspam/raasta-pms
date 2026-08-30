@@ -61,6 +61,8 @@ export default async function AnalyticsPage({
       pendingCorrections={pendingCorrections}
       month={month}
       year={year}
+      currentMonth={currentMonth}
+      currentYear={currentYear}
       preset={resolvedPreset}
     />
   );
