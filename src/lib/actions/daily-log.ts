@@ -11,27 +11,13 @@ import {
   viralPlatformCounts,
   extraWorkRecords,
   teamMembers,
-  workingDayExceptions,
   creatorTeamAgents,
 } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { salesLogSchema, creatorLogSchema } from '@/lib/validators/daily-log';
-import { isSundayDubai } from '@/lib/domain/weeks';
 import { generateRef } from '@/lib/domain/helpers';
 
-async function isAllowedDate(dateStr: string): Promise<boolean> {
-  if (!isSundayDubai(dateStr)) return true;
-
-  // Check for special Sunday exception
-  const exception = await db.query.workingDayExceptions.findFirst({
-    where: and(
-      eq(workingDayExceptions.exceptionDate, dateStr),
-      eq(workingDayExceptions.type, 'special_sunday'),
-    ),
-  });
-
-  return exception != null;
-}
+// Every day of the week is a working day, Sunday included — no date is refused.
 
 export async function submitSalesLog(
   raw: unknown,
@@ -45,12 +31,6 @@ export async function submitSalesLog(
   }
 
   const data = parsed.data;
-
-  // Sunday check
-  const allowed = await isAllowedDate(data.logDate);
-  if (!allowed) {
-    return { success: false, error: 'Daily logs cannot be submitted on Sundays.' };
-  }
 
   // Duplicate check
   const existing = await db.query.dailyLogs.findFirst({
@@ -130,11 +110,6 @@ export async function submitCreatorLog(
   }
 
   const data = parsed.data;
-
-  const allowed = await isAllowedDate(data.logDate);
-  if (!allowed) {
-    return { success: false, error: 'Daily logs cannot be submitted on Sundays.' };
-  }
 
   const existing = await db.query.dailyLogs.findFirst({
     where: and(

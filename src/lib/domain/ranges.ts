@@ -5,7 +5,7 @@
  * { from, to } window so the same aggregation code serves a month, a single
  * operational week, a rolling window, or an admin-picked custom range.
  */
-import { parseDateString, toDateString, todayDubai } from './weeks';
+import { parseDateString, toDateString, todayDubai, weekBoundsFor } from './weeks';
 import { MONTHS } from './helpers';
 
 export type RangePreset =
@@ -20,11 +20,6 @@ export interface DateRange {
   from: string; // YYYY-MM-DD inclusive
   to: string;   // YYYY-MM-DD inclusive
   label: string;
-}
-
-/** Working days are Mon–Sat; Sunday is off. */
-export function isWorkingDay(dateStr: string): boolean {
-  return parseDateString(dateStr).getUTCDay() !== 0;
 }
 
 /** Adds `days` to a YYYY-MM-DD string. */
@@ -42,14 +37,15 @@ export function eachDate(from: string, to: string): string[] {
 }
 
 /**
- * Working days shared by two inclusive date ranges.
+ * Days shared by two inclusive date ranges. Every day counts — the team works
+ * seven days a week.
  *
- * Weekly targets are set for a whole Mon–Sat week. When a range slices a week
- * in half, the target counts for the share of the week that actually falls
- * inside the range — otherwise a 3-day window would be measured against a full
- * week's target and every member would read as failing.
+ * Weekly targets are set for a whole week. When a range slices a week in half,
+ * the target counts for the share of the week that actually falls inside the
+ * range — otherwise a 3-day window would be measured against a full week's
+ * target and every member would read as failing.
  */
-export function overlapWorkingDays(
+export function overlapDays(
   aFrom: string,
   aTo: string,
   bFrom: string,
@@ -58,18 +54,22 @@ export function overlapWorkingDays(
   const from = aFrom > bFrom ? aFrom : bFrom;
   const to = aTo < bTo ? aTo : bTo;
   if (from > to) return 0;
-  return eachDate(from, to).filter(isWorkingDay).length;
+  return eachDate(from, to).length;
 }
 
-/** The share of a Mon–Sat week's target that belongs inside `range`. 0 → 1. */
+/**
+ * The share of a week's target that belongs inside `range`. 0 → 1.
+ * Week 4 runs longer than the others, so the divisor is the week's own length
+ * rather than a fixed 7.
+ */
 export function weekOverlapFactor(
   weekStart: string,
   weekEnd: string,
   range: DateRange,
 ): number {
-  const weekDays = eachDate(weekStart, weekEnd).filter(isWorkingDay).length;
+  const weekDays = eachDate(weekStart, weekEnd).length;
   if (weekDays === 0) return 0;
-  return overlapWorkingDays(weekStart, weekEnd, range.from, range.to) / weekDays;
+  return overlapDays(weekStart, weekEnd, range.from, range.to) / weekDays;
 }
 
 /** First and last day of a calendar month. */
@@ -77,14 +77,6 @@ export function monthBounds(year: number, month: number): { from: string; to: st
   const first = new Date(Date.UTC(year, month - 1, 1));
   const last = new Date(Date.UTC(year, month, 0));
   return { from: toDateString(first), to: toDateString(last) };
-}
-
-/** Monday of the Mon–Sat week containing `dateStr`. */
-export function mondayOfDate(dateStr: string): string {
-  const d = parseDateString(dateStr);
-  const dow = d.getUTCDay();
-  d.setUTCDate(d.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
-  return toDateString(d);
 }
 
 export function formatRangeLabel(from: string, to: string): string {
@@ -136,9 +128,18 @@ export function resolveRange(
       break;
     }
     case 'week': {
-      const from = params.from && DATE_RE.test(params.from) ? params.from : mondayOfDate(today);
-      const to = addDays(from, 5);
-      return { range: { from, to, label: `Week of ${formatRangeLabel(from, to)}` }, preset };
+      // A week is one of the month's four blocks, so its end follows from its
+      // start — including week 4, which runs to the end of the month.
+      const seed = params.from && DATE_RE.test(params.from) ? params.from : today;
+      const { weekNumber, startDate, endDate } = weekBoundsFor(seed);
+      return {
+        range: {
+          from: startDate,
+          to: endDate,
+          label: `Week ${weekNumber} · ${formatRangeLabel(startDate, endDate)}`,
+        },
+        preset,
+      };
     }
     case 'last-7': {
       const from = addDays(today, -6);

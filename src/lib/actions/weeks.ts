@@ -2,7 +2,7 @@
 
 import { db } from '@/db';
 import { operationalWeeks } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { generateWeeksForMonth } from '@/lib/domain/weeks';
 
 /**
@@ -39,11 +39,15 @@ export async function getWeeksForMonth(
       });
   }
 
-  // Return only weeks assigned to the requested month
+  // Return the four canonical weeks by start date, not everything tagged with
+  // this month. Weeks generated under the old Mon–Sat scheme still carry the
+  // month, and targets already reference them, so those rows stay in the table
+  // and keep counting in analytics — they just no longer show up as pickable
+  // weeks alongside the current four.
   return db.query.operationalWeeks.findMany({
-    where: and(
-      eq(operationalWeeks.month, month),
-      eq(operationalWeeks.year, year),
+    where: inArray(
+      operationalWeeks.startDate,
+      generated.map((w) => w.startDate),
     ),
     orderBy: (t, { asc }) => [asc(t.startDate)],
   });

@@ -1,21 +1,26 @@
 /**
  * Week generator — pure domain function.
- * Rules:
- *  - Working weeks run Monday → Saturday (6 days)
- *  - Each week is assigned to the calendar month in which ≥ 3 of its 6 working
- *    days fall. On a tie (exactly 3 days each) the week belongs to the month
- *    that contains the Monday.
- *  - Weeks are labelled "Week N of Month YYYY".
+ *
+ * Every month is divided into exactly four weeks by day-of-month:
+ *   Week 1 = 1–7, Week 2 = 8–14, Week 3 = 15–21, Week 4 = 22 → end of month.
+ *
+ * Week 4 absorbs whatever the month has left, so it runs 7 days in February and
+ * 10 in a 31-day month. Weeks never cross a month boundary, and every day of
+ * the week is a working day — Sunday included.
  */
 
 export interface GeneratedWeek {
   weekNumber: number;
   month: number;       // 1-12
   year: number;
-  startDate: string;   // YYYY-MM-DD (Monday)
-  endDate: string;     // YYYY-MM-DD (Saturday)
+  startDate: string;   // YYYY-MM-DD
+  endDate: string;     // YYYY-MM-DD
   label: string;
 }
+
+/** The day-of-month each week begins on. */
+export const WEEK_START_DAYS = [1, 8, 15, 22] as const;
+export const WEEKS_PER_MONTH = WEEK_START_DAYS.length;
 
 /** Returns a YYYY-MM-DD string for a Date in local time. */
 export function toDateString(d: Date): string {
@@ -31,131 +36,61 @@ export function parseDateString(s: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
-/**
- * Returns the Monday of the ISO week containing `date`.
- */
-function mondayOf(date: Date): Date {
-  const d = new Date(date);
-  // getUTCDay(): 0 = Sunday, 1 = Monday … 6 = Saturday
-  const dow = d.getUTCDay();
-  const daysToMonday = dow === 0 ? -6 : 1 - dow;
-  d.setUTCDate(d.getUTCDate() + daysToMonday);
-  return d;
+/** Number of days in a given month. */
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const dateOf = (year: number, month: number, day: number) =>
+  `${year}-${pad(month)}-${pad(day)}`;
+
+/** Which of the four weeks a day-of-month belongs to (1-4). */
+export function weekNumberForDay(day: number): number {
+  // Everything from the 22nd on is week 4, however long the month runs.
+  return day >= 22 ? 4 : Math.floor((day - 1) / 7) + 1;
 }
 
 /**
- * Generates all Mon–Sat operational weeks relevant to a given year/month.
- *
- * "Relevant" means: every week whose 6 working days overlap with the requested
- * month at all, so the caller has the full picture for pagination and can
- * filter by assigned month themselves.
+ * The four weeks of a month. Deterministic — no dependency on which weekday
+ * the month happens to start on.
  */
 export function generateWeeksForMonth(year: number, month: number): GeneratedWeek[] {
-  // Start from the Monday of the week that contains the 1st of the month
-  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1));
-  const lastOfMonth = new Date(Date.UTC(year, month - 1, 1));
-  lastOfMonth.setUTCMonth(lastOfMonth.getUTCMonth() + 1);
-  lastOfMonth.setUTCDate(lastOfMonth.getUTCDate() - 1); // last day of month
+  const last = daysInMonth(year, month);
 
-  let cursor = mondayOf(firstOfMonth);
+  return WEEK_START_DAYS.map((startDay, i) => {
+    const isLast = i === WEEKS_PER_MONTH - 1;
+    // The final week runs to the end of the month; the rest are 7 days.
+    const endDay = isLast ? last : Math.min(startDay + 6, last);
+    const weekNumber = i + 1;
 
-  const weeks: GeneratedWeek[] = [];
-
-  // Iterate until the Monday is past the end of the month
-  while (cursor <= lastOfMonth) {
-    const saturday = new Date(cursor);
-    saturday.setUTCDate(saturday.getUTCDate() + 5);
-
-    // Determine which month this week is assigned to
-    const assignedMonth = assignWeekToMonth(cursor, saturday);
-
-    weeks.push({
-      weekNumber: 0, // set below per-month
-      month: assignedMonth.month,
-      year: assignedMonth.year,
-      startDate: toDateString(cursor),
-      endDate: toDateString(saturday),
-      label: '', // set below
-    });
-
-    // Advance to the next Monday
-    cursor = new Date(cursor);
-    cursor.setUTCDate(cursor.getUTCDate() + 7);
-  }
-
-  // Also include the next week if the last Saturday ended exactly on the last
-  // day of the month (edge-case: week straddles month boundary)
-  if (weeks.length > 0) {
-    const last = weeks[weeks.length - 1];
-    if (last.endDate === toDateString(lastOfMonth)) {
-      const nextMonday = new Date(cursor);
-      const nextSaturday = new Date(nextMonday);
-      nextSaturday.setUTCDate(nextSaturday.getUTCDate() + 5);
-      const assignedMonth = assignWeekToMonth(nextMonday, nextSaturday);
-      weeks.push({
-        weekNumber: 0,
-        month: assignedMonth.month,
-        year: assignedMonth.year,
-        startDate: toDateString(nextMonday),
-        endDate: toDateString(nextSaturday),
-        label: '',
-      });
-    }
-  }
-
-  // Assign sequential weekNumber per (month, year) and build label
-  const counters = new Map<string, number>();
-  for (const w of weeks) {
-    const key = `${w.year}-${w.month}`;
-    const n = (counters.get(key) ?? 0) + 1;
-    counters.set(key, n);
-    w.weekNumber = n;
-    w.label = `Week ${n} of ${monthName(w.month)} ${w.year}`;
-  }
-
-  return weeks;
+    return {
+      weekNumber,
+      month,
+      year,
+      startDate: dateOf(year, month, startDay),
+      endDate: dateOf(year, month, endDay),
+      label: `Week ${weekNumber} of ${monthName(month)} ${year}`,
+    };
+  });
 }
 
-/**
- * Determines which month/year a Mon–Sat week is assigned to.
- *
- * Rule: count how many of the 6 working days fall in each calendar month.
- * The month with ≥ 3 days wins. On a tie (3 Mon/Tue/Wed vs 3 Thu/Fri/Sat)
- * the week goes to the month that contains Monday.
- */
-function assignWeekToMonth(
-  monday: Date,
-  saturday: Date,
-): { month: number; year: number } {
-  const counts = new Map<string, { month: number; year: number; count: number }>();
-
-  for (let i = 0; i < 6; i++) {
-    const d = new Date(monday);
-    d.setUTCDate(d.getUTCDate() + i);
-    const m = d.getUTCMonth() + 1;
-    const y = d.getUTCFullYear();
-    const key = `${y}-${m}`;
-    const existing = counts.get(key);
-    if (existing) {
-      existing.count++;
-    } else {
-      counts.set(key, { month: m, year: y, count: 1 });
-    }
-  }
-
-  let best: { month: number; year: number; count: number } | undefined;
-  for (const entry of counts.values()) {
-    if (!best || entry.count > best.count) {
-      best = entry;
-    }
-  }
-
-  // Tie-break: if two months tie (each with 3 days), use Monday's month
-  if (best && best.count === 3 && counts.size > 1) {
-    return { month: monday.getUTCMonth() + 1, year: monday.getUTCFullYear() };
-  }
-
-  return { month: best!.month, year: best!.year };
+/** The week block containing a date, as { startDate, endDate, weekNumber }. */
+export function weekBoundsFor(dateStr: string): {
+  weekNumber: number;
+  startDate: string;
+  endDate: string;
+} {
+  const d = parseDateString(dateStr);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth() + 1;
+  const weekNumber = weekNumberForDay(d.getUTCDate());
+  const week = generateWeeksForMonth(year, month)[weekNumber - 1];
+  return {
+    weekNumber,
+    startDate: week.startDate,
+    endDate: week.endDate,
+  };
 }
 
 const MONTHS = [
@@ -165,18 +100,6 @@ const MONTHS = [
 
 function monthName(month: number): string {
   return MONTHS[month] ?? '';
-}
-
-/**
- * Checks whether a given date string (YYYY-MM-DD) is a Sunday
- * in the Asia/Dubai timezone.
- */
-export function isSundayDubai(dateStr: string): boolean {
-  // Parse as UTC midnight, then convert to Dubai time (UTC+4)
-  const utcMs = parseDateString(dateStr).getTime();
-  const dubaiMs = utcMs + 4 * 60 * 60 * 1000;
-  const dubaiDate = new Date(dubaiMs);
-  return dubaiDate.getUTCDay() === 0;
 }
 
 /**

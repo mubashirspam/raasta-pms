@@ -122,8 +122,8 @@ const emptyTargets = (): TargetTotals => ({
 });
 
 /**
- * Weekly targets that overlap the range, each scaled to the share of its Mon–Sat
- * week that actually falls inside it. Returns targets keyed two ways:
+ * Weekly targets that overlap the range, each scaled to the share of its week
+ * that actually falls inside it. Returns targets keyed two ways:
  *  - `byOwner`: what the member committed to (a creator's rows roll up here)
  *  - `byAgent`: what creators committed to deliver *for* a given sales agent
  */

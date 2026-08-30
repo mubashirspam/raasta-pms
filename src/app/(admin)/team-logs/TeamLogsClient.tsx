@@ -27,7 +27,7 @@ interface Props {
   counts: Record<string, { logged: number; absent: number }>;
 }
 
-// Mon-first grid: the work week runs Mon–Sat and Sunday is the day off.
+// Mon-first grid. Every column is a working day — the team works Sundays too.
 const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const gridColumn = (weekday: number) => (weekday === 0 ? 7 : weekday);
 
@@ -43,7 +43,7 @@ const LEGEND: Array<{ state: DayState; label: string }> = [
   { state: 'present', label: 'Logged' },
   { state: 'absent', label: 'Absent' },
   { state: 'missing', label: 'No log' },
-  { state: 'off', label: 'Day off' },
+  { state: 'off', label: 'Holiday' },
 ];
 
 export function TeamLogsClient({

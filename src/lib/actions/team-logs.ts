@@ -10,8 +10,8 @@ import { parseDateString, todayDubai } from '@/lib/domain/weeks';
 export type DayState =
   | 'present'   // log submitted, member was in
   | 'absent'    // log submitted, marked absent
-  | 'missing'   // working day in the past with no log
-  | 'off'       // Sunday (unless opened as a special working day)
+  | 'missing'   // a past day with no log
+  | 'off'       // declared holiday
   | 'future';   // not reachable yet
 
 export interface CalendarDay {
@@ -70,11 +70,9 @@ export async function getMemberLogCalendar(
   ]);
 
   const byDate = new Map(logs.map((l) => [l.logDate, l]));
+  // The team works seven days a week, so only a declared holiday is a day off.
   const holidays = new Set(
     exceptions.filter((e) => e.type === 'holiday').map((e) => e.exceptionDate),
-  );
-  const specialSundays = new Set(
-    exceptions.filter((e) => e.type === 'special_sunday').map((e) => e.exceptionDate),
   );
 
   return eachDate(from, to).map((date) => {
@@ -86,7 +84,7 @@ export async function getMemberLogCalendar(
       state = log.attendance === 'absent' ? 'absent' : 'present';
     } else if (date > today) {
       state = 'future';
-    } else if ((weekday === 0 && !specialSundays.has(date)) || holidays.has(date)) {
+    } else if (holidays.has(date)) {
       state = 'off';
     } else {
       state = 'missing';
