@@ -34,6 +34,9 @@ export const salesLogSchema = z.object({
   lateReason: z.string().max(500).optional(),
   organicCalls: positiveInt,
   marketingCalls: positiveInt,
+  // Call time in whole minutes, capped at a 24-hour day.
+  organicCallMinutes: positiveInt.max(1440, 'Call time cannot exceed 24 hours'),
+  marketingCallMinutes: positiveInt.max(1440, 'Call time cannot exceed 24 hours'),
   videoCalls: positiveInt,
   faceToFace: positiveInt,
   reelsUploaded: positiveInt,

@@ -35,6 +35,17 @@ export interface PlatformCount {
   count: number;
 }
 
+/**
+ * A running total with no target behind it — call time and lead volume are
+ * tracked but never committed to in the weekly target form.
+ */
+export interface StatRow {
+  key: string;
+  label: string;
+  value: number;
+  format: 'number' | 'duration';
+}
+
 export type MemberKind = 'sales' | 'creator' | 'other';
 
 export interface MemberAnalytics {
@@ -45,6 +56,7 @@ export interface MemberAnalytics {
   positionName: string;
   kind: MemberKind;
   metrics: MetricRow[];
+  cumulative: StatRow[];
   /** Viral videos this person produced (creator) or was credited with (agent). */
   platforms: PlatformCount[];
   viralTotal: number;
@@ -56,6 +68,7 @@ export interface MemberAnalytics {
 export interface RangeAnalytics {
   range: DateRange;
   totals: MetricRow[];
+  cumulative: StatRow[];
   platforms: PlatformCount[];
   memberSummaries: MemberAnalytics[];
   cumulativeSeries: Array<{ date: string; cumulative: number }>;
@@ -73,6 +86,15 @@ function metric(
   format: MetricFormat = 'number',
 ): MetricRow {
   return { key, label, actual, target, format };
+}
+
+function stat(
+  key: string,
+  label: string,
+  value: number,
+  format: StatRow['format'] = 'number',
+): StatRow {
+  return { key, label, value, format };
 }
 
 // ─── Prorated targets ──────────────────────────────────────────────────────────
@@ -210,6 +232,8 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         connectedCalls: sum(dailyLogs.connectedCalls),
         videoCalls: sum(dailyLogs.videoCalls),
         faceToFace: sum(dailyLogs.faceToFace),
+        organicCallMinutes: sum(dailyLogs.organicCallMinutes),
+        marketingCallMinutes: sum(dailyLogs.marketingCallMinutes),
         revenue: sum(dailyLogs.salesRevenue),
         teamRevenue: sum(dailyLogs.teamRevenue),
         reelsUploaded: sum(dailyLogs.reelsUploaded),
@@ -331,6 +355,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         : 'other';
 
     const metrics: MetricRow[] = [];
+    const cumulative: StatRow[] = [];
     let platforms: PlatformCount[];
     let viralTotal: number;
 
@@ -352,9 +377,18 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         metric('faceToFace', 'Face-to-Face', n(s?.faceToFace), ownTargets.faceToFace),
         metric('revenue', 'Revenue', n(s?.revenue), ownTargets.revenue, 'currency'),
         // Delivered by the content creators who carry this agent on their team.
-        metric('reelsReceived', 'Reels Received', n(credited?.reels), agentTargets.reels),
+        metric('reelsReceived', 'Reels From Creators', n(credited?.reels), agentTargets.reels),
         metric('viralReceived', 'Viral Videos', viralTotal, agentTargets.viral),
-        metric('leadsReceived', 'Leads Received', n(credited?.leads), agentTargets.leads),
+        metric('leadsReceived', 'Leads From Creators', n(credited?.leads), agentTargets.leads),
+      );
+
+      const organicMins = n(s?.organicCallMinutes);
+      const marketingMins = n(s?.marketingCallMinutes);
+      cumulative.push(
+        stat('organicCallTime', 'Organic Call Time', organicMins, 'duration'),
+        stat('reassignedCallTime', 'Reassigned Call Time', marketingMins, 'duration'),
+        stat('totalCallTime', 'Total Call Time', organicMins + marketingMins, 'duration'),
+        stat('leadsLogged', 'Leads Received', n(s?.leadsReceived)),
       );
     }
 
@@ -366,6 +400,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       positionName: m.position.name,
       kind,
       metrics,
+      cumulative,
       platforms,
       viralTotal,
       logsSubmitted: n(s?.logs),
@@ -402,15 +437,26 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     ),
   ];
 
-  let cumulative = 0;
+  // Tracked but never targeted: call time and lead volume are running totals.
+  const organicMinutes = sumOf(salesRows, (r) => r.organicCallMinutes);
+  const marketingMinutes = sumOf(salesRows, (r) => r.marketingCallMinutes);
+  const cumulative: StatRow[] = [
+    stat('organicCallTime', 'Organic Call Time', organicMinutes, 'duration'),
+    stat('reassignedCallTime', 'Reassigned Call Time', marketingMinutes, 'duration'),
+    stat('totalCallTime', 'Total Call Time', organicMinutes + marketingMinutes, 'duration'),
+    stat('leadsLogged', 'Leads Received', sumOf(salesRows, (r) => r.leadsReceived)),
+  ];
+
+  let running = 0;
   const cumulativeSeries = dailyRevenueSeries.map((row) => {
-    cumulative += n(row.dailyRevenue);
-    return { date: row.logDate, cumulative };
+    running += n(row.dailyRevenue);
+    return { date: row.logDate, cumulative: running };
   });
 
   return {
     range,
     totals,
+    cumulative,
     platforms: orderPlatforms(companyPlatforms),
     memberSummaries,
     cumulativeSeries,

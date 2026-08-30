@@ -82,6 +82,8 @@ export async function submitSalesLog(
         lateReason: data.lateReason,
         organicCalls: data.organicCalls,
         marketingCalls: data.marketingCalls,
+        organicCallMinutes: data.organicCallMinutes,
+        marketingCallMinutes: data.marketingCallMinutes,
         connectedCalls,
         videoCalls: data.videoCalls,
         faceToFace: data.faceToFace,

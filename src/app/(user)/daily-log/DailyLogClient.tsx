@@ -6,6 +6,8 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { DurationPicker } from '@/components/ui/DurationPicker';
+import { fmtDuration } from '@/lib/domain/helpers';
 import { submitSalesLog, submitCreatorLog } from '@/lib/actions/daily-log';
 import { VIRAL_PLATFORMS } from '@/db/schema';
 import type { TeamMember, EmployeeCategory, Position } from '@/db/schema';
@@ -44,6 +46,9 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   // Sales fields
   const [organicCalls, setOrganicCalls] = useState(0);
   const [marketingCalls, setMarketingCalls] = useState(0);
+  // Call time is held in whole minutes; the picker splits it into h + m.
+  const [organicCallMinutes, setOrganicCallMinutes] = useState(0);
+  const [marketingCallMinutes, setMarketingCallMinutes] = useState(0);
   const [videoCalls, setVideoCalls] = useState(0);
   const [faceToFace, setFaceToFace] = useState(0);
   const [reelsUploaded, setReelsUploaded] = useState(0);
@@ -67,6 +72,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const [referenceNumber, setReferenceNumber] = useState('');
 
   const connectedCalls = organicCalls + marketingCalls;
+  const totalCallMinutes = organicCallMinutes + marketingCallMinutes;
   const isAbsent = attendance === 'absent';
   // LER/BDM report their team's revenue on top of their own.
   const isCreator = member.category.name === 'Content Creator';
@@ -135,6 +141,8 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
             lateReason: lateReason || undefined,
             organicCalls,
             marketingCalls,
+            organicCallMinutes,
+            marketingCallMinutes,
             videoCalls,
             faceToFace,
             reelsUploaded,
@@ -253,11 +261,33 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                   <div className="space-y-3">
                     <Input label="Organic Calls" type="number" min="0"
                       value={organicCalls} onChange={(e) => setOrganicCalls(+e.target.value)} />
+                    <DurationPicker
+                      label="Time on Organic Calls"
+                      value={organicCallMinutes}
+                      onChange={setOrganicCallMinutes}
+                    />
+
+                    <div className="h-px bg-raasta-line" />
+
                     <Input label="Marketing / Reassigned Calls" type="number" min="0"
                       value={marketingCalls} onChange={(e) => setMarketingCalls(+e.target.value)} />
-                    <div className="bg-raasta-subtle rounded-lg px-3 py-2 flex justify-between text-sm">
-                      <span className="text-raasta-muted">Connected Calls (auto)</span>
-                      <span className="text-gold-600 font-semibold">{connectedCalls}</span>
+                    <DurationPicker
+                      label="Time on Reassigned Calls"
+                      value={marketingCallMinutes}
+                      onChange={setMarketingCallMinutes}
+                    />
+
+                    <div className="bg-raasta-subtle rounded-lg px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-raasta-muted">Connected Calls (auto)</span>
+                        <span className="text-gold-600 font-semibold">{connectedCalls}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-raasta-muted">Total Call Time (auto)</span>
+                        <span className="text-gold-600 font-semibold">
+                          {fmtDuration(totalCallMinutes)}
+                        </span>
+                      </div>
                     </div>
                     <Input label="Video Calls" type="number" min="0"
                       value={videoCalls} onChange={(e) => setVideoCalls(+e.target.value)} />

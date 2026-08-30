@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { cn, fmtAED, MONTHS } from '@/lib/domain/helpers';
+import { cn, fmtAED, fmtDuration, MONTHS } from '@/lib/domain/helpers';
 import { parseDateString } from '@/lib/domain/weeks';
 import type { CalendarDay, DayState, LogDetail } from '@/lib/actions/team-logs';
 import type { TeamMember, EmployeeCategory, Position } from '@/db/schema';
@@ -344,8 +344,17 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
             <Section title="Sales activity">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <Stat label="Organic calls" value={detail.organicCalls} />
-                <Stat label="Marketing calls" value={detail.marketingCalls} />
+                <Stat label="Organic call time" value={fmtDuration(detail.organicCallMinutes)} />
+                <Stat label="Reassigned calls" value={detail.marketingCalls} />
+                <Stat
+                  label="Reassigned call time"
+                  value={fmtDuration(detail.marketingCallMinutes)}
+                />
                 <Stat label="Connected calls" value={detail.connectedCalls} />
+                <Stat
+                  label="Total call time"
+                  value={fmtDuration(detail.organicCallMinutes + detail.marketingCallMinutes)}
+                />
                 <Stat label="Video calls" value={detail.videoCalls} />
                 <Stat label="Face-to-face" value={detail.faceToFace} />
                 <Stat label="Reels uploaded" value={detail.reelsUploaded} />

@@ -254,6 +254,11 @@ export const dailyLogs = pgTable(
     lateReason: text('late_reason'),
     organicCalls: integer('organic_calls').notNull().default(0),
     marketingCalls: integer('marketing_calls').notNull().default(0),
+    // Time spent on the phone, stored as whole minutes. The form collects
+    // hours and minutes separately; organic and reassigned are tracked apart
+    // because they are different kinds of work. No target is set against these.
+    organicCallMinutes: integer('organic_call_minutes').notNull().default(0),
+    marketingCallMinutes: integer('marketing_call_minutes').notNull().default(0),
     // computed in application layer: organic + marketing
     connectedCalls: integer('connected_calls').notNull().default(0),
     videoCalls: integer('video_calls').notNull().default(0),
