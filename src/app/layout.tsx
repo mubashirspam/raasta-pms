@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0A0A0A',
+  themeColor: '#F7F7F5',
 };
 
 export default function RootLayout({
@@ -32,12 +32,16 @@ export default function RootLayout({
             position="top-center"
             toastOptions={{
               style: {
-                background: '#1A1A1A',
-                color: '#fff',
-                border: '1px solid #2A2A2A',
+                background: '#FFFFFF',
+                color: '#17171A',
+                border: '1px solid #E3E3DE',
+                boxShadow: '0 8px 28px rgba(23,23,26,0.12)',
               },
               success: {
-                iconTheme: { primary: '#D4AF37', secondary: '#1A1A1A' },
+                iconTheme: { primary: '#12894C', secondary: '#FFFFFF' },
+              },
+              error: {
+                iconTheme: { primary: '#C4372F', secondary: '#FFFFFF' },
               },
             }}
           />

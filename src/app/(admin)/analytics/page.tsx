@@ -1,22 +1,17 @@
-import { AdminGate } from '@/components/AdminGate';
 import { AnalyticsClient } from './AnalyticsClient';
 import { getOverviewAnalytics } from '@/lib/actions/analytics';
 import { getMembers } from '@/lib/actions/members';
 import { getNotifications } from '@/lib/actions/analytics';
 import { currentMonthYearDubai } from '@/lib/domain/weeks';
 import { getPendingCorrections } from '@/lib/actions/corrections';
-import { isAdminAuthenticated } from '@/lib/auth-server';
+import { requireAdmin } from '@/lib/auth-server';
 
 export default async function AnalyticsPage({
   searchParams,
 }: {
   searchParams: { month?: string; year?: string };
 }) {
-  const isAdmin = await isAdminAuthenticated();
-
-  if (!isAdmin) {
-    return <AdminGate>{null}</AdminGate>;
-  }
+  await requireAdmin();
 
   const { month: currentMonth, year: currentYear } = currentMonthYearDubai();
   const month = Number(searchParams.month ?? currentMonth);

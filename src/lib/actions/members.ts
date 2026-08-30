@@ -6,12 +6,50 @@ import {
   teamMembers,
   dailyLogs,
   weeklyTargets,
+  appUsers,
 } from '@/db/schema';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, sql } from 'drizzle-orm';
 import { addMemberSchema, updateMemberSchema } from '@/lib/validators/members';
 import { isAdminAuthenticated } from '@/lib/auth-server';
-import { writeAudit } from '@/lib/auth';
+import { writeAudit, createUserForMember, regeneratePin } from '@/lib/auth';
 import { nanoid } from 'nanoid';
+
+/** Members with their login credentials. Admin-only — PINs are readable here. */
+export async function getMembersWithLogins(): Promise<
+  Record<string, { userId: string; username: string; pin: string }>
+> {
+  const isAdmin = await isAdminAuthenticated();
+  if (!isAdmin) return {};
+
+  const rows = await db
+    .select({
+      userId: appUsers.id,
+      memberId: appUsers.memberId,
+      username: appUsers.username,
+      pin: appUsers.pin,
+    })
+    .from(appUsers)
+    .where(eq(appUsers.role, 'user'));
+
+  const byMember: Record<string, { userId: string; username: string; pin: string }> = {};
+  for (const r of rows) {
+    if (r.memberId) byMember[r.memberId] = { userId: r.userId, username: r.username, pin: r.pin };
+  }
+  return byMember;
+}
+
+export async function regenerateMemberPin(
+  userId: string,
+): Promise<{ success: boolean; error?: string; pin?: string }> {
+  const isAdmin = await isAdminAuthenticated();
+  if (!isAdmin) return { success: false, error: 'Not authenticated' };
+
+  const pin = await regeneratePin(userId);
+  // Deliberately not written to the audit log.
+  await writeAudit('REGENERATE_PIN', 'app_user', userId, null);
+  revalidatePath('/manage-team');
+  return { success: true, pin };
+}
 
 export async function getMembers(filters?: {
   categoryId?: number;
@@ -33,7 +71,14 @@ export async function getMembers(filters?: {
 
 export async function addMember(
   raw: unknown,
-): Promise<{ success: boolean; error?: string; id?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  id?: string;
+  memberCode?: string;
+  username?: string;
+  pin?: string;
+}> {
   const isAdmin = await isAdminAuthenticated();
   if (!isAdmin) return { success: false, error: 'Not authenticated' };
 
@@ -45,31 +90,52 @@ export async function addMember(
   const data = parsed.data;
   const id = nanoid(12);
 
-  // Check for duplicate member code
-  const existing = await db.query.teamMembers.findFirst({
-    where: eq(teamMembers.memberCode, data.memberCode.toUpperCase()),
-  });
-  if (existing) {
-    return { success: false, error: `Member code "${data.memberCode}" already in use` };
+  // Member codes are assigned by the server, not entered by the admin. Take the
+  // highest number already in use and add one. member_code carries a unique
+  // index, so a racing insert loses and we retry with the next number.
+  let memberCode = '';
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const [row] = await db
+      .select({
+        next: sql<number>`coalesce(max(nullif(regexp_replace(${teamMembers.memberCode}, '\\D', '', 'g'), '')::int), 0) + 1`,
+      })
+      .from(teamMembers);
+
+    memberCode = String(row?.next ?? 1).padStart(3, '0');
+
+    try {
+      await db.insert(teamMembers).values({
+        id,
+        fullName: data.fullName,
+        memberCode,
+        categoryId: data.categoryId,
+        positionId: data.positionId,
+        displayOrder: data.displayOrder,
+      });
+      break;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes('team_members_member_code_uniq')) throw e;
+      if (attempt === 4) {
+        return { success: false, error: 'Could not assign a member code, please retry.' };
+      }
+    }
   }
 
-  await db.insert(teamMembers).values({
-    id,
-    fullName: data.fullName,
-    memberCode: data.memberCode.toUpperCase(),
-    categoryId: data.categoryId,
-    positionId: data.positionId,
-    teamName: data.teamName,
-    joiningDate: data.joiningDate,
-    displayOrder: data.displayOrder,
-  });
+  // Every member gets a login. Credentials are returned once so the admin can
+  // hand them over; they stay readable on the Manage Team page.
+  const credentials = await createUserForMember(id, data.fullName);
 
-  await writeAudit('CREATE_MEMBER', 'team_member', id, { fullName: data.fullName });
+  await writeAudit('CREATE_MEMBER', 'team_member', id, {
+    fullName: data.fullName,
+    memberCode,
+    username: credentials.username,
+  });
   revalidatePath('/manage-team');
   revalidatePath('/targets');
   revalidatePath('/daily-log');
 
-  return { success: true, id };
+  return { success: true, id, memberCode, ...credentials };
 }
 
 export async function updateMember(

@@ -34,3 +34,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+next-env.d.ts

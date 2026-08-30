@@ -1,117 +1,92 @@
-import { betterAuth } from 'better-auth';
-import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '@/db';
-import { adminSettings, adminSessions, auditLog } from '@/db/schema';
-import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { appUsers, sessions, teamMembers, auditLog } from '@/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-
-export const auth = betterAuth({
-  database: drizzleAdapter(db, {
-    provider: 'pg',
-  }),
-  secret: process.env.BETTER_AUTH_SECRET!,
-  baseURL: process.env.BETTER_AUTH_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000',
-  emailAndPassword: {
-    enabled: false, // We use a custom credentials flow
-  },
-  plugins: [],
-});
-
-// ─── Custom PIN auth helpers (not using Better Auth sessions) ─────────────────
-// We keep a custom admin_sessions table for the PIN flow so the UX stays identical
-// to the original Express build. Better Auth is available if SSO is added later.
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-// In-memory rate limit store (resets on cold start — acceptable for a single-admin app)
+// In-memory rate limit store, keyed by username+ip. Resets on cold start, which
+// is acceptable for a small internal deployment.
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
 
-function checkRateLimit(ip: string): { allowed: boolean; remaining: number } {
+function checkRateLimit(key: string): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(ip);
+  const entry = rateLimitMap.get(key);
 
   if (!entry || now - entry.windowStart > WINDOW_MS) {
-    rateLimitMap.set(ip, { count: 1, windowStart: now });
-    return { allowed: true, remaining: MAX_ATTEMPTS - 1 };
+    rateLimitMap.set(key, { count: 1, windowStart: now });
+    return true;
   }
-
-  if (entry.count >= MAX_ATTEMPTS) {
-    return { allowed: false, remaining: 0 };
-  }
+  if (entry.count >= MAX_ATTEMPTS) return false;
 
   entry.count++;
-  return { allowed: true, remaining: MAX_ATTEMPTS - entry.count };
+  return true;
 }
 
-export async function isPinConfigured(): Promise<boolean> {
-  const [settings] = await db
-    .select({ pinSet: adminSettings.pinSet })
-    .from(adminSettings)
-    .where(eq(adminSettings.id, 1));
-  return settings?.pinSet ?? false;
-}
+/** "Ahmed Khan" -> "ahmedkhan", with a numeric suffix if that is taken. */
+export async function generateUsername(fullName: string): Promise<string> {
+  const base =
+    fullName
+      .toLowerCase()
+      .replace(/[^a-z]/g, '')
+      .slice(0, 40) || 'user';
 
-export async function setupPin(pin: string): Promise<{ success: boolean; error?: string }> {
-  if (!/^\d{4}$/.test(pin)) {
-    return { success: false, error: 'PIN must be exactly 4 digits' };
+  const taken = await db
+    .select({ username: appUsers.username })
+    .from(appUsers)
+    .where(sql`${appUsers.username} = ${base} or ${appUsers.username} like ${base + '%'}`);
+
+  const used = new Set(taken.map((t) => t.username));
+  if (!used.has(base)) return base;
+
+  for (let i = 2; i < 1000; i++) {
+    const candidate = `${base}${i}`;
+    if (!used.has(candidate)) return candidate;
   }
-
-  const already = await isPinConfigured();
-  if (already) {
-    return { success: false, error: 'PIN already configured. Use change-pin instead.' };
-  }
-
-  const hash = await bcrypt.hash(pin, 12);
-
-  await db
-    .insert(adminSettings)
-    .values({ id: 1, pinHash: hash, pinSet: true })
-    .onConflictDoUpdate({
-      target: adminSettings.id,
-      set: { pinHash: hash, pinSet: true, updatedAt: new Date() },
-    });
-
-  return { success: true };
+  return `${base}${nanoid(4).toLowerCase()}`;
 }
 
-export async function verifyPinAndCreateSession(
+/** Random 4-digit PIN, zero-padded ("0042" is valid). */
+export function generatePin(): string {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+}
+
+export type AuthedUser = {
+  id: string;
+  username: string;
+  role: 'admin' | 'user';
+  memberId: string | null;
+};
+
+export async function login(
+  username: string,
   pin: string,
   ip: string,
   userAgent?: string,
-): Promise<{ sessionId: string | null; error?: string; tooManyAttempts?: boolean }> {
-  const { allowed } = checkRateLimit(ip);
-  if (!allowed) {
-    return {
-      sessionId: null,
-      error: 'Too many attempts. Try again in 15 minutes.',
-      tooManyAttempts: true,
-    };
-  }
+): Promise<{ sessionId: string | null; error?: string }> {
+  const uname = username.trim().toLowerCase();
 
+  if (!checkRateLimit(`${uname}:${ip}`)) {
+    return { sessionId: null, error: 'Too many attempts. Try again in 15 minutes.' };
+  }
   if (!/^\d{4}$/.test(pin)) {
-    return { sessionId: null, error: 'Invalid PIN format' };
+    return { sessionId: null, error: 'PIN must be exactly 4 digits' };
   }
 
-  const [settings] = await db.select().from(adminSettings).where(eq(adminSettings.id, 1));
+  const [user] = await db.select().from(appUsers).where(eq(appUsers.username, uname));
 
-  if (!settings?.pinHash) {
-    return { sessionId: null, error: 'PIN not configured' };
-  }
-
-  const valid = await bcrypt.compare(pin, settings.pinHash);
-  if (!valid) {
-    return { sessionId: null, error: 'Incorrect PIN' };
+  // Same message either way so the form never reveals which usernames exist.
+  if (!user || user.pin !== pin || !user.isActive) {
+    return { sessionId: null, error: 'Incorrect username or PIN' };
   }
 
   const sessionId = nanoid(32);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-
-  await db.insert(adminSessions).values({
+  await db.insert(sessions).values({
     id: sessionId,
-    expiresAt,
+    userId: user.id,
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     ipAddress: ip,
     userAgent,
   });
@@ -119,54 +94,83 @@ export async function verifyPinAndCreateSession(
   return { sessionId };
 }
 
-export async function validateSession(sessionId: string | null): Promise<boolean> {
-  if (!sessionId) return false;
+export async function getUserBySession(sessionId: string | null): Promise<AuthedUser | null> {
+  if (!sessionId) return null;
 
-  const [session] = await db
-    .select({ expiresAt: adminSessions.expiresAt })
-    .from(adminSessions)
-    .where(eq(adminSessions.id, sessionId));
+  const [row] = await db
+    .select({
+      id: appUsers.id,
+      username: appUsers.username,
+      role: appUsers.role,
+      memberId: appUsers.memberId,
+      isActive: appUsers.isActive,
+      expiresAt: sessions.expiresAt,
+    })
+    .from(sessions)
+    .innerJoin(appUsers, eq(sessions.userId, appUsers.id))
+    .where(eq(sessions.id, sessionId));
 
-  if (!session) return false;
-  return session.expiresAt > new Date();
+  if (!row || !row.isActive || row.expiresAt <= new Date()) return null;
+
+  return {
+    id: row.id,
+    username: row.username,
+    role: row.role as 'admin' | 'user',
+    memberId: row.memberId,
+  };
 }
 
 export async function revokeSession(sessionId: string): Promise<void> {
-  await db.delete(adminSessions).where(eq(adminSessions.id, sessionId));
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
 
-export async function changePin(
+/** Creates the login for a team member. Returns the generated credentials. */
+export async function createUserForMember(
+  memberId: string,
+  fullName: string,
+): Promise<{ username: string; pin: string }> {
+  const username = await generateUsername(fullName);
+  const pin = generatePin();
+
+  await db.insert(appUsers).values({
+    id: nanoid(12),
+    username,
+    pin,
+    role: 'user',
+    memberId,
+  });
+
+  return { username, pin };
+}
+
+export async function regeneratePin(userId: string): Promise<string> {
+  const pin = generatePin();
+  await db
+    .update(appUsers)
+    .set({ pin, updatedAt: new Date() })
+    .where(eq(appUsers.id, userId));
+  // Force a fresh login everywhere.
+  await db.delete(sessions).where(eq(sessions.userId, userId));
+  return pin;
+}
+
+export async function changeOwnPin(
+  userId: string,
   currentPin: string,
   newPin: string,
-  sessionId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const isValid = await validateSession(sessionId);
-  if (!isValid) return { success: false, error: 'Not authenticated' };
-
   if (!/^\d{4}$/.test(newPin)) {
     return { success: false, error: 'New PIN must be exactly 4 digits' };
   }
 
-  const [settings] = await db.select().from(adminSettings).where(eq(adminSettings.id, 1));
-
-  if (!settings?.pinHash) {
-    return { success: false, error: 'PIN not configured' };
-  }
-
-  const valid = await bcrypt.compare(currentPin, settings.pinHash);
-  if (!valid) {
-    return { success: false, error: 'Current PIN is incorrect' };
-  }
-
-  const hash = await bcrypt.hash(newPin, 12);
+  const [user] = await db.select().from(appUsers).where(eq(appUsers.id, userId));
+  if (!user) return { success: false, error: 'User not found' };
+  if (user.pin !== currentPin) return { success: false, error: 'Current PIN is incorrect' };
 
   await db
-    .update(adminSettings)
-    .set({ pinHash: hash, updatedAt: new Date() })
-    .where(eq(adminSettings.id, 1));
-
-  // Revoke all existing sessions
-  await db.delete(adminSessions);
+    .update(appUsers)
+    .set({ pin: newPin, updatedAt: new Date() })
+    .where(eq(appUsers.id, userId));
 
   return { success: true };
 }
@@ -176,14 +180,15 @@ export async function writeAudit(
   entityType: string,
   entityId: string | number | null,
   details?: unknown,
+  actor = 'admin',
   ip?: string,
 ): Promise<void> {
   await db.insert(auditLog).values({
     action,
     entityType,
     entityId: entityId != null ? String(entityId) : null,
-    actor: 'admin',
-    details: details as Record<string, unknown> ?? null,
+    actor,
+    details: (details as Record<string, unknown>) ?? null,
     ipAddress: ip ?? null,
   });
 }

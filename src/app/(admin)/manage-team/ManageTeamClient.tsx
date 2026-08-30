@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
-import { addMember, updateMember, deleteMember } from '@/lib/actions/members';
+import { RefreshCw } from 'lucide-react';
+import { addMember, updateMember, deleteMember, regenerateMemberPin } from '@/lib/actions/members';
 import { changePinAction } from '@/lib/actions/auth';
-import { useAdmin } from '@/context/AdminContext';
 import type {
   TeamMember, EmployeeCategory, Position,
 } from '@/db/schema';
@@ -20,26 +20,30 @@ type MemberWithRelations = TeamMember & {
   position: Position;
 };
 
+type Login = { userId: string; username: string; pin: string };
+
 interface Props {
   members: MemberWithRelations[];
+  logins: Record<string, Login>;
   categories: EmployeeCategory[];
   positions: Position[];
 }
 
-export function ManageTeamClient({ members, categories, positions }: Props) {
+export function ManageTeamClient({ members, logins, categories, positions }: Props) {
   const router = useRouter();
-  const { logout } = useAdmin();
   const [tab, setTab] = useState<'list' | 'add' | 'settings'>('list');
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Add member form
   const [fullName, setFullName] = useState('');
-  const [memberCode, setMemberCode] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [positionId, setPositionId] = useState('');
-  const [teamName, setTeamName] = useState('');
-  const [joiningDate, setJoiningDate] = useState('');
+
+  // Positions belong to a category, so only offer the ones that match.
+  const availablePositions = categoryId
+    ? positions.filter((p) => p.categoryId === Number(categoryId))
+    : [];
 
   // Change PIN form
   const [currentPin, setCurrentPin] = useState('');
@@ -48,8 +52,8 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
   const [pinError, setPinError] = useState('');
 
   const resetForm = () => {
-    setFullName(''); setMemberCode(''); setCategoryId('');
-    setPositionId(''); setTeamName(''); setJoiningDate('');
+    setFullName(''); setCategoryId('');
+    setPositionId('');
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -57,18 +61,18 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
     setSubmitting(true);
     const result = await addMember({
       fullName,
-      memberCode,
       categoryId: Number(categoryId),
       positionId: Number(positionId),
-      teamName: teamName || undefined,
-      joiningDate: joiningDate || undefined,
     });
     setSubmitting(false);
 
     if (!result.success) {
       toast.error(result.error ?? 'Failed to add member');
     } else {
-      toast.success('Member added');
+      toast.success(
+        `Member added — code ${result.memberCode}, login ${result.username} / PIN ${result.pin}`,
+        { duration: 8000 },
+      );
       resetForm();
       setTab('list');
       router.refresh();
@@ -108,8 +112,15 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
       setPinError(result.error ?? 'Failed');
     } else {
       toast.success('PIN changed. You will be logged out.');
-      setTimeout(async () => { await logout(); router.refresh(); }, 1500);
+      setTimeout(() => router.refresh(), 1500);
     }
+  };
+
+  const handleRegenerate = async (userId: string) => {
+    const result = await regenerateMemberPin(userId);
+    if (!result.success) return toast.error(result.error ?? 'Could not regenerate PIN');
+    toast.success(`New PIN: ${result.pin}`);
+    router.refresh();
   };
 
   const activeMembers = members.filter((m) => m.isActive);
@@ -118,20 +129,17 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white">Manage Team</h1>
-        <Button variant="ghost" size="sm" onClick={async () => { await logout(); router.refresh(); }}>
-          Logout
-        </Button>
+        <h1 className="text-2xl font-bold tracking-tight text-raasta-ink">Manage Team</h1>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-raasta-dark rounded-xl p-1">
+      <div className="flex gap-1 bg-raasta-subtle rounded-xl p-1">
         {(['list', 'add', 'settings'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${
-              tab === t ? 'bg-raasta-card text-white' : 'text-gray-500 hover:text-white'
+              tab === t ? 'bg-raasta-surface text-raasta-ink' : 'text-raasta-muted hover:text-raasta-ink'
             }`}
           >
             {t === 'list' ? `Members (${members.length})` : t === 'add' ? '+ Add' : 'Settings'}
@@ -144,27 +152,27 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
         <div className="space-y-4">
           {activeMembers.length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 font-medium mb-2 uppercase tracking-wide">Active</p>
+              <p className="text-xs text-raasta-muted font-medium mb-2 uppercase tracking-wide">Active</p>
               <div className="space-y-2">
                 {activeMembers.map((m) => (
                   <Card key={m.id}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-white font-semibold text-sm truncate">{m.fullName}</p>
-                        <p className="text-xs text-gray-500">{m.memberCode} · {m.position.name} · {m.category.name}</p>
-                        {m.teamName && <p className="text-xs text-gray-600 mt-0.5">Team: {m.teamName}</p>}
+                        <p className="text-raasta-ink font-semibold text-sm truncate">{m.fullName}</p>
+                        <p className="text-xs text-raasta-muted">{m.memberCode} · {m.position.name} · {m.category.name}</p>
+                        <Credentials login={logins[m.id]} onRegenerate={handleRegenerate} />
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant="green">Active</Badge>
                         <button
                           onClick={() => handleToggleActive(m)}
-                          className="text-xs text-gray-500 hover:text-amber-400 ml-1 px-2 py-1 rounded hover:bg-amber-400/5"
+                          className="text-xs text-raasta-muted hover:text-warn-500 ml-1 px-2 py-1 rounded hover:bg-warn-50"
                         >
                           Deactivate
                         </button>
                         <button
                           onClick={() => handleDelete(m.id)}
-                          className="text-xs text-red-500 hover:text-red-400 px-2 py-1 rounded hover:bg-red-400/5"
+                          className="text-xs text-bad-500 hover:text-bad-600 px-2 py-1 rounded hover:bg-bad-50"
                         >
                           Delete
                         </button>
@@ -178,20 +186,20 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
 
           {inactiveMembers.length > 0 && (
             <div>
-              <p className="text-xs text-gray-500 font-medium mb-2 uppercase tracking-wide">Inactive</p>
+              <p className="text-xs text-raasta-muted font-medium mb-2 uppercase tracking-wide">Inactive</p>
               <div className="space-y-2">
                 {inactiveMembers.map((m) => (
                   <Card key={m.id} className="opacity-60">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-white font-semibold text-sm truncate">{m.fullName}</p>
-                        <p className="text-xs text-gray-500">{m.memberCode} · {m.position.name}</p>
+                        <p className="text-raasta-ink font-semibold text-sm truncate">{m.fullName}</p>
+                        <p className="text-xs text-raasta-muted">{m.memberCode} · {m.position.name}</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant="gray">Inactive</Badge>
                         <button
                           onClick={() => handleToggleActive(m)}
-                          className="text-xs text-green-500 hover:text-green-400 ml-1 px-2 py-1 rounded"
+                          className="text-xs text-ok-500 hover:text-ok-600 ml-1 px-2 py-1 rounded hover:bg-ok-50"
                         >
                           Reactivate
                         </button>
@@ -205,7 +213,7 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
 
           {members.length === 0 && (
             <Card>
-              <p className="text-gray-500 text-sm">No team members yet. Add one using the + Add tab.</p>
+              <p className="text-raasta-muted text-sm">No team members yet. Add one using the + Add tab.</p>
             </Card>
           )}
         </div>
@@ -222,16 +230,10 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
               onChange={(e) => setFullName(e.target.value)}
               required
             />
-            <Input
-              label="Member Code * (e.g. NJ-001)"
-              value={memberCode}
-              onChange={(e) => setMemberCode(e.target.value.toUpperCase())}
-              required
-            />
             <Select
               label="Category *"
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={(e) => { setCategoryId(e.target.value); setPositionId(''); }}
               placeholder="Select category"
               options={categories.map((c) => ({ value: c.id, label: c.name }))}
               required
@@ -240,20 +242,9 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
               label="Position *"
               value={positionId}
               onChange={(e) => setPositionId(e.target.value)}
-              placeholder="Select position"
-              options={positions.map((p) => ({ value: p.id, label: p.name }))}
+              placeholder={categoryId ? 'Select position' : 'Select a category first'}
+              options={availablePositions.map((p) => ({ value: p.id, label: p.name }))}
               required
-            />
-            <Input
-              label="Team Name (optional)"
-              value={teamName}
-              onChange={(e) => setTeamName(e.target.value)}
-            />
-            <Input
-              label="Joining Date (optional)"
-              type="date"
-              value={joiningDate}
-              onChange={(e) => setJoiningDate(e.target.value)}
             />
             <Button type="submit" className="w-full" loading={submitting}>
               Add Member
@@ -268,7 +259,7 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
           <CardTitle className="mb-4">Change Admin PIN</CardTitle>
           <form onSubmit={handleChangePin} className="space-y-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Current PIN</label>
+              <label className="text-xs font-medium text-raasta-muted uppercase tracking-wide">Current PIN</label>
               <input
                 type="password"
                 inputMode="numeric"
@@ -276,12 +267,12 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
-                className="w-full bg-raasta-dark border border-raasta-border rounded-xl px-3 py-2.5 text-white text-center text-2xl tracking-widest focus:outline-none focus:border-gold-500/60"
+                className="w-full bg-raasta-subtle border border-raasta-border rounded-xl px-3 py-2.5 text-raasta-ink text-center text-2xl tracking-widest focus:outline-none focus:border-gold-400"
                 required
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">New PIN</label>
+              <label className="text-xs font-medium text-raasta-muted uppercase tracking-wide">New PIN</label>
               <input
                 type="password"
                 inputMode="numeric"
@@ -289,12 +280,12 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
-                className="w-full bg-raasta-dark border border-raasta-border rounded-xl px-3 py-2.5 text-white text-center text-2xl tracking-widest focus:outline-none focus:border-gold-500/60"
+                className="w-full bg-raasta-subtle border border-raasta-border rounded-xl px-3 py-2.5 text-raasta-ink text-center text-2xl tracking-widest focus:outline-none focus:border-gold-400"
                 required
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">Confirm New PIN</label>
+              <label className="text-xs font-medium text-raasta-muted uppercase tracking-wide">Confirm New PIN</label>
               <input
                 type="password"
                 inputMode="numeric"
@@ -302,17 +293,49 @@ export function ManageTeamClient({ members, categories, positions }: Props) {
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
-                className="w-full bg-raasta-dark border border-raasta-border rounded-xl px-3 py-2.5 text-white text-center text-2xl tracking-widest focus:outline-none focus:border-gold-500/60"
+                className="w-full bg-raasta-subtle border border-raasta-border rounded-xl px-3 py-2.5 text-raasta-ink text-center text-2xl tracking-widest focus:outline-none focus:border-gold-400"
                 required
               />
             </div>
-            {pinError && <p className="text-xs text-red-400">{pinError}</p>}
+            {pinError && <p className="text-xs text-bad-500">{pinError}</p>}
             <Button type="submit" className="w-full" loading={submitting}>
               Change PIN
             </Button>
           </form>
         </Card>
       )}
+    </div>
+  );
+}
+
+function Credentials({
+  login,
+  onRegenerate,
+}: {
+  login?: Login;
+  onRegenerate: (userId: string) => void;
+}) {
+  if (!login) {
+    return <p className="text-xs text-raasta-faint mt-1.5">No login yet</p>;
+  }
+  return (
+    <div className="flex items-center gap-2 mt-1.5">
+      <span className="inline-flex items-center gap-1.5 bg-raasta-subtle border border-raasta-border rounded-lg px-2 py-1">
+        <span className="text-[11px] text-raasta-muted">user</span>
+        <span className="text-xs font-mono text-raasta-ink">{login.username}</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5 bg-raasta-subtle border border-raasta-border rounded-lg px-2 py-1">
+        <span className="text-[11px] text-raasta-muted">PIN</span>
+        <span className="text-xs font-mono font-semibold text-raasta-ink tabular-nums">{login.pin}</span>
+      </span>
+      <button
+        type="button"
+        onClick={() => onRegenerate(login.userId)}
+        aria-label={`Generate a new PIN for ${login.username}`}
+        className="p-1 rounded-lg text-raasta-faint hover:text-gold-600 hover:bg-gold-50 transition-colors"
+      >
+        <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
     </div>
   );
 }

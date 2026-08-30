@@ -16,7 +16,6 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/actions/analytics';
-import { useAdmin } from '@/context/AdminContext';
 import type { TeamMember, EmployeeCategory, Position, Notification, CorrectionRequest } from '@/db/schema';
 
 type MemberWithRelations = TeamMember & { category: EmployeeCategory; position: Position };
@@ -59,7 +58,6 @@ export function AnalyticsClient({
   year,
 }: Props) {
   const router = useRouter();
-  const { logout } = useAdmin();
   const [tab, setTab] = useState<Tab>('overview');
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState('');
@@ -112,27 +110,23 @@ export function AnalyticsClient({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Analytics</h1>
-          <p className="text-sm text-gray-500">{MONTHS[month]} {year}</p>
+          <h1 className="text-xl font-bold text-raasta-ink">Analytics</h1>
+          <p className="text-sm text-raasta-muted">{MONTHS[month]} {year}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Notification bell */}
           <button
             onClick={() => setShowNotifications(true)}
-            className="relative p-2 text-gray-400 hover:text-white rounded-lg hover:bg-white/5"
+            className="relative p-2 text-raasta-muted hover:text-raasta-ink rounded-lg hover:bg-raasta-subtle"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                 d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-gold-500 rounded-full" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-gold-400 rounded-full" />
             )}
           </button>
-          {/* Logout */}
-          <Button variant="ghost" size="sm" onClick={async () => { await logout(); router.refresh(); }}>
-            Logout
-          </Button>
         </div>
       </div>
 
@@ -148,7 +142,7 @@ export function AnalyticsClient({
               key={offset}
               onClick={() => router.push(`/analytics?month=${m}&year=${y}`)}
               className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                active ? 'bg-gold-500 text-raasta-black' : 'bg-raasta-card border border-raasta-border text-gray-400 hover:text-white'
+                active ? 'bg-gold-400 text-raasta-ink' : 'bg-raasta-surface border border-raasta-border text-raasta-muted hover:text-raasta-ink'
               }`}
             >
               {MONTHS[m]} {y}
@@ -158,13 +152,13 @@ export function AnalyticsClient({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-raasta-dark rounded-xl p-1">
+      <div className="flex gap-1 bg-raasta-subtle rounded-xl p-1">
         {(['overview', 'members', 'corrections', 'notifications'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize ${
-              tab === t ? 'bg-raasta-card text-white' : 'text-gray-500 hover:text-white'
+              tab === t ? 'bg-raasta-surface text-raasta-ink' : 'text-raasta-muted hover:text-raasta-ink'
             }`}
           >
             {t === 'corrections' && pendingCorrections.length > 0
@@ -180,30 +174,30 @@ export function AnalyticsClient({
       {tab === 'overview' && (
         <div className="space-y-4">
           {!a ? (
-            <Card><p className="text-gray-500 text-sm">No data for this period.</p></Card>
+            <Card><p className="text-raasta-muted text-sm">No data for this period.</p></Card>
           ) : (
             <>
               {/* Summary cards */}
               <div className="grid grid-cols-2 gap-3">
                 <Card>
-                  <p className="text-xs text-gray-500 mb-1">Total Revenue</p>
-                  <p className="text-gold-500 font-bold text-lg">{fmtAED(a.totalRevenue)}</p>
+                  <p className="text-xs text-raasta-muted mb-1">Total Revenue</p>
+                  <p className="text-gold-600 font-bold text-lg">{fmtAED(a.totalRevenue)}</p>
                 </Card>
                 <Card>
-                  <p className="text-xs text-gray-500 mb-1">Revenue Target</p>
-                  <p className="text-white font-bold text-lg">{fmtAED(a.totalTarget)}</p>
+                  <p className="text-xs text-raasta-muted mb-1">Revenue Target</p>
+                  <p className="text-raasta-ink font-bold text-lg">{fmtAED(a.totalTarget)}</p>
                 </Card>
               </div>
 
               {/* Achievement bar */}
               <Card>
-                <div className="flex justify-between text-xs text-gray-500 mb-2">
+                <div className="flex justify-between text-xs text-raasta-muted mb-2">
                   <span>Achievement</span>
                   <span>{a.totalTarget > 0 ? Math.round((a.totalRevenue / a.totalTarget) * 100) : 0}%</span>
                 </div>
-                <div className="h-2 bg-raasta-dark rounded-full overflow-hidden">
+                <div className="h-2 bg-raasta-subtle rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gold-500 rounded-full transition-all"
+                    className="h-full bg-gold-400 rounded-full transition-all"
                     style={{ width: `${Math.min(100, a.totalTarget > 0 ? (a.totalRevenue / a.totalTarget) * 100 : 0)}%` }}
                   />
                 </div>
@@ -226,35 +220,35 @@ export function AnalyticsClient({
             <Card key={ms.member.id}>
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="text-white font-semibold text-sm">{ms.member.fullName}</p>
-                  <p className="text-xs text-gray-500">{ms.member.memberCode} · {ms.member.position.name}</p>
+                  <p className="text-raasta-ink font-semibold text-sm">{ms.member.fullName}</p>
+                  <p className="text-xs text-raasta-muted">{ms.member.memberCode} · {ms.member.position.name}</p>
                 </div>
                 <StatusBadge onTarget={ms.onTarget} />
               </div>
               <div className="grid grid-cols-3 gap-2 text-center mt-3">
                 <div>
-                  <p className="text-xs text-gray-500">Revenue</p>
-                  <p className="text-gold-500 font-semibold text-sm">{fmtAED(ms.revenue)}</p>
+                  <p className="text-xs text-raasta-muted">Revenue</p>
+                  <p className="text-gold-600 font-semibold text-sm">{fmtAED(ms.revenue)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Target</p>
-                  <p className="text-white text-sm">{fmtAED(ms.target)}</p>
+                  <p className="text-xs text-raasta-muted">Target</p>
+                  <p className="text-raasta-ink text-sm">{fmtAED(ms.target)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Logs</p>
-                  <p className="text-white text-sm">{ms.logsSubmitted}</p>
+                  <p className="text-xs text-raasta-muted">Logs</p>
+                  <p className="text-raasta-ink text-sm">{ms.logsSubmitted}</p>
                 </div>
               </div>
-              <div className="h-1.5 bg-raasta-dark rounded-full overflow-hidden mt-3">
+              <div className="h-1.5 bg-raasta-subtle rounded-full overflow-hidden mt-3">
                 <div
-                  className="h-full bg-gold-500 rounded-full"
+                  className="h-full bg-gold-400 rounded-full"
                   style={{ width: `${Math.min(100, ms.target > 0 ? (ms.revenue / ms.target) * 100 : 0)}%` }}
                 />
               </div>
             </Card>
           ))}
           {!analytics?.memberSummaries.length && (
-            <Card><p className="text-gray-500 text-sm">No member data for this period.</p></Card>
+            <Card><p className="text-raasta-muted text-sm">No member data for this period.</p></Card>
           )}
         </div>
       )}
@@ -264,23 +258,23 @@ export function AnalyticsClient({
         <div className="space-y-3">
           {pendingCorrections.length === 0 ? (
             <Card>
-              <p className="text-gray-500 text-sm">No pending corrections.</p>
+              <p className="text-raasta-muted text-sm">No pending corrections.</p>
             </Card>
           ) : (
             pendingCorrections.map((c) => (
               <Card key={c.id}>
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <p className="text-white font-semibold text-sm capitalize">{c.recordType} Correction</p>
-                    <p className="text-xs text-gray-500">{c.member.fullName}</p>
+                    <p className="text-raasta-ink font-semibold text-sm capitalize">{c.recordType} Correction</p>
+                    <p className="text-xs text-raasta-muted">{c.member.fullName}</p>
                   </div>
                   <Badge variant="amber">Pending</Badge>
                 </div>
-                <p className="text-sm text-gray-400 mb-3">{c.reason}</p>
+                <p className="text-sm text-raasta-muted mb-3">{c.reason}</p>
 
-                <div className="bg-raasta-dark rounded-lg p-3 mb-3 text-xs">
-                  <p className="text-gray-500 mb-1">Proposed Changes:</p>
-                  <pre className="text-gray-300 whitespace-pre-wrap">
+                <div className="bg-raasta-subtle rounded-lg p-3 mb-3 text-xs">
+                  <p className="text-raasta-muted mb-1">Proposed Changes:</p>
+                  <pre className="text-raasta-ink whitespace-pre-wrap">
                     {JSON.stringify(c.proposedChanges, null, 2)}
                   </pre>
                 </div>
@@ -288,7 +282,7 @@ export function AnalyticsClient({
                 {rejectingId === c.id ? (
                   <div className="space-y-2">
                     <textarea
-                      className="w-full bg-raasta-dark border border-raasta-border rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-gold-500/60"
+                      className="w-full bg-raasta-subtle border border-raasta-border rounded-lg px-3 py-2 text-raasta-ink text-sm resize-none focus:outline-none focus:border-gold-400"
                       rows={2}
                       placeholder="Admin note (required)"
                       value={rejectNote}
@@ -327,20 +321,20 @@ export function AnalyticsClient({
             </Button>
           )}
           {notifications.length === 0 ? (
-            <Card><p className="text-gray-500 text-sm">No unread notifications.</p></Card>
+            <Card><p className="text-raasta-muted text-sm">No unread notifications.</p></Card>
           ) : (
             notifications.map((n) => (
               <Card key={n.id} className={n.isRead ? 'opacity-60' : ''}>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-white font-semibold text-sm">{n.title}</p>
-                    <p className="text-xs text-gray-400 mt-1">{n.body}</p>
-                    {n.member && <p className="text-xs text-gray-600 mt-1">{n.member.fullName}</p>}
+                    <p className="text-raasta-ink font-semibold text-sm">{n.title}</p>
+                    <p className="text-xs text-raasta-muted mt-1">{n.body}</p>
+                    {n.member && <p className="text-xs text-raasta-faint mt-1">{n.member.fullName}</p>}
                   </div>
                   {!n.isRead && (
                     <button
                       onClick={async () => { await markNotificationRead(n.id); router.refresh(); }}
-                      className="text-xs text-gold-500 hover:text-gold-400 shrink-0"
+                      className="text-xs text-gold-600 hover:text-gold-400 shrink-0"
                     >
                       Mark read
                     </button>

@@ -1,47 +1,24 @@
 'use server';
 
 import { cookies, headers } from 'next/headers';
-import {
-  isPinConfigured,
-  setupPin,
-  verifyPinAndCreateSession,
-  revokeSession,
-  changePin,
-} from '@/lib/auth';
-import { ADMIN_SESSION_COOKIE } from '@/lib/auth-server';
-
-export async function checkPinStatus(): Promise<{ configured: boolean }> {
-  const configured = await isPinConfigured();
-  return { configured };
-}
-
-export async function setupPinAction(
-  pin: string,
-): Promise<{ success: boolean; error?: string }> {
-  return setupPin(pin);
-}
+import { redirect } from 'next/navigation';
+import { login, revokeSession, changeOwnPin } from '@/lib/auth';
+import { SESSION_COOKIE, getCurrentUser, getSessionId } from '@/lib/auth-server';
 
 export async function loginAction(
+  username: string,
   pin: string,
-): Promise<{ success: boolean; error?: string; tooManyAttempts?: boolean }> {
+): Promise<{ success: boolean; error?: string; role?: 'admin' | 'user' }> {
   const headersList = headers();
-  const ip =
-    headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
   const ua = headersList.get('user-agent') ?? undefined;
 
-  const result = await verifyPinAndCreateSession(pin, ip, ua);
-
+  const result = await login(username, pin, ip, ua);
   if (!result.sessionId) {
-    return {
-      success: false,
-      error: result.error,
-      tooManyAttempts: result.tooManyAttempts,
-    };
+    return { success: false, error: result.error };
   }
 
-  // Set httpOnly cookie for SSR routes
-  const cookieStore = cookies();
-  cookieStore.set(ADMIN_SESSION_COOKIE, result.sessionId, {
+  cookies().set(SESSION_COOKIE, result.sessionId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -49,23 +26,22 @@ export async function loginAction(
     path: '/',
   });
 
-  return { success: true };
+  const user = await getCurrentUser();
+  return { success: true, role: user?.role };
 }
 
 export async function logoutAction(): Promise<void> {
-  const cookieStore = cookies();
-  const sessionId = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
-  if (sessionId) {
-    await revokeSession(sessionId);
-    cookieStore.delete(ADMIN_SESSION_COOKIE);
-  }
+  const sessionId = getSessionId();
+  if (sessionId) await revokeSession(sessionId);
+  cookies().delete(SESSION_COOKIE);
+  redirect('/login');
 }
 
 export async function changePinAction(
   currentPin: string,
   newPin: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const cookieStore = cookies();
-  const sessionId = cookieStore.get(ADMIN_SESSION_COOKIE)?.value ?? '';
-  return changePin(currentPin, newPin, sessionId);
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: 'Not authenticated' };
+  return changeOwnPin(user.id, currentPin, newPin);
 }

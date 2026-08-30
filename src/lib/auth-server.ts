@@ -1,33 +1,61 @@
 /**
- * Server-side auth utilities for use in Server Components and Route Handlers.
+ * Server-side auth utilities for Server Components and Route Handlers.
  * Never import from client components.
  */
-import { cookies, headers } from 'next/headers';
-import { validateSession } from './auth';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { db } from '@/db';
+import { teamMembers } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { getUserBySession, type AuthedUser } from './auth';
 
-export const ADMIN_SESSION_COOKIE = 'raasta_admin_session';
+export const SESSION_COOKIE = 'raasta_session';
 
-export async function getAdminSessionId(): Promise<string | null> {
-  // Check cookie first (SSR / RSC flow)
-  const cookieStore = cookies();
-  const cookie = cookieStore.get(ADMIN_SESSION_COOKIE);
-  if (cookie?.value) return cookie.value;
-
-  // Fall back to x-admin-session header (direct API calls)
-  const headersList = headers();
-  return headersList.get('x-admin-session');
+export function getSessionId(): string | null {
+  return cookies().get(SESSION_COOKIE)?.value ?? null;
 }
 
-export async function requireAdmin(): Promise<void> {
-  const sessionId = await getAdminSessionId();
-  const valid = await validateSession(sessionId);
-  if (!valid) {
-    redirect('/manage-team?auth=required');
-  }
+export async function getCurrentUser(): Promise<AuthedUser | null> {
+  return getUserBySession(getSessionId());
+}
+
+/** The logged-in user plus their team-member record (category and position). */
+export async function getCurrentMember() {
+  const user = await getCurrentUser();
+  if (!user?.memberId) return null;
+
+  const member = await db.query.teamMembers.findFirst({
+    where: eq(teamMembers.id, user.memberId),
+    with: { category: true, position: true },
+  });
+
+  return member ? { user, member } : null;
+}
+
+/** Any authenticated user; sends anonymous visitors to the login screen. */
+export async function requireUser(): Promise<AuthedUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+  return user;
+}
+
+export async function requireAdmin(): Promise<AuthedUser> {
+  const user = await requireUser();
+  if (user.role !== 'admin') redirect('/home');
+  return user;
+}
+
+/** A regular user with their member record; admins are sent to their own area. */
+export async function requireMember() {
+  const user = await requireUser();
+  if (user.role === 'admin') redirect('/analytics');
+
+  const ctx = await getCurrentMember();
+  if (!ctx) redirect('/login');
+  return ctx;
 }
 
 export async function isAdminAuthenticated(): Promise<boolean> {
-  const sessionId = await getAdminSessionId();
-  return validateSession(sessionId);
+  const user = await getCurrentUser();
+  return user?.role === 'admin';
 }

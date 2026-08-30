@@ -9,13 +9,30 @@ import {
   developerVisits,
   creatorDailyMetrics,
   creatorShootParticipants,
-  viralVideoRecords,
-  leadDistributions,
-  instagramVideoRecords,
+  viralPlatformCounts,
   extraWorkRecords,
   correctionRequests,
   notifications,
+  creatorTeamAgents,
+  creatorAgentDailyMetrics,
+  appUsers,
+  sessions,
 } from './schema';
+
+export const appUsersRelations = relations(appUsers, ({ one, many }) => ({
+  member: one(teamMembers, {
+    fields: [appUsers.memberId],
+    references: [teamMembers.id],
+  }),
+  sessions: many(sessions),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(appUsers, {
+    fields: [sessions.userId],
+    references: [appUsers.id],
+  }),
+}));
 
 export const teamMembersRelations = relations(teamMembers, ({ one, many }) => ({
   category: one(employeeCategories, {
@@ -34,16 +51,51 @@ export const teamMembersRelations = relations(teamMembers, ({ one, many }) => ({
 
 export const employeeCategoriesRelations = relations(employeeCategories, ({ many }) => ({
   members: many(teamMembers),
+  positions: many(positions),
 }));
 
-export const positionsRelations = relations(positions, ({ many }) => ({
+export const positionsRelations = relations(positions, ({ one, many }) => ({
   members: many(teamMembers),
+  category: one(employeeCategories, {
+    fields: [positions.categoryId],
+    references: [employeeCategories.id],
+  }),
+}));
+
+export const creatorAgentDailyMetricsRelations = relations(creatorAgentDailyMetrics, ({ one }) => ({
+  log: one(dailyLogs, {
+    fields: [creatorAgentDailyMetrics.logId],
+    references: [dailyLogs.id],
+  }),
+  agent: one(teamMembers, {
+    fields: [creatorAgentDailyMetrics.agentId],
+    references: [teamMembers.id],
+    relationName: 'dailyMetricAgent',
+  }),
+}));
+
+export const creatorTeamAgentsRelations = relations(creatorTeamAgents, ({ one }) => ({
+  creator: one(teamMembers, {
+    fields: [creatorTeamAgents.creatorId],
+    references: [teamMembers.id],
+    relationName: 'creatorTeam',
+  }),
+  agent: one(teamMembers, {
+    fields: [creatorTeamAgents.agentId],
+    references: [teamMembers.id],
+    relationName: 'agentOfCreators',
+  }),
 }));
 
 export const weeklyTargetsRelations = relations(weeklyTargets, ({ one }) => ({
   member: one(teamMembers, {
     fields: [weeklyTargets.memberId],
     references: [teamMembers.id],
+  }),
+  agent: one(teamMembers, {
+    fields: [weeklyTargets.agentId],
+    references: [teamMembers.id],
+    relationName: 'targetAgent',
   }),
   week: one(operationalWeeks, {
     fields: [weeklyTargets.weekId],
@@ -69,10 +121,9 @@ export const dailyLogsRelations = relations(dailyLogs, ({ one, many }) => ({
     fields: [dailyLogs.id],
     references: [creatorDailyMetrics.logId],
   }),
+  creatorAgentMetrics: many(creatorAgentDailyMetrics),
   shootParticipants: many(creatorShootParticipants),
-  viralVideoRecords: many(viralVideoRecords),
-  leadDistributions: many(leadDistributions),
-  instagramVideoRecords: many(instagramVideoRecords),
+  viralPlatformCounts: many(viralPlatformCounts),
   extraWorkRecords: many(extraWorkRecords),
 }));
 
@@ -101,31 +152,9 @@ export const creatorShootParticipantsRelations = relations(creatorShootParticipa
   }),
 }));
 
-export const viralVideoRecordsRelations = relations(viralVideoRecords, ({ one }) => ({
+export const viralPlatformCountsRelations = relations(viralPlatformCounts, ({ one }) => ({
   log: one(dailyLogs, {
-    fields: [viralVideoRecords.logId],
-    references: [dailyLogs.id],
-  }),
-  contentOwner: one(teamMembers, {
-    fields: [viralVideoRecords.contentOwnerId],
-    references: [teamMembers.id],
-  }),
-}));
-
-export const leadDistributionsRelations = relations(leadDistributions, ({ one }) => ({
-  log: one(dailyLogs, {
-    fields: [leadDistributions.logId],
-    references: [dailyLogs.id],
-  }),
-  recipient: one(teamMembers, {
-    fields: [leadDistributions.recipientId],
-    references: [teamMembers.id],
-  }),
-}));
-
-export const instagramVideoRecordsRelations = relations(instagramVideoRecords, ({ one }) => ({
-  log: one(dailyLogs, {
-    fields: [instagramVideoRecords.logId],
+    fields: [viralPlatformCounts.logId],
     references: [dailyLogs.id],
   }),
 }));
