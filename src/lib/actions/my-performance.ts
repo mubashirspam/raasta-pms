@@ -36,6 +36,8 @@ export interface MyAchievement {
   viralTotal: number;
   logsSubmitted: number;
   daysPresent: number;
+  daysRemote: number;
+  daysHybrid: number;
   daysAbsent: number;
   /** How many of the metrics that carry a target have been met. */
   targetsMet: number;
@@ -78,6 +80,8 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           marketingCallMinutes: sum(dailyLogs.marketingCallMinutes),
           logs: count(),
           present: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'present')`,
+          remote: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'remote')`,
+          hybrid: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'hybrid')`,
           absent: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'absent')`,
         })
         .from(dailyLogs)
@@ -88,6 +92,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           reels: sum(creatorDailyMetrics.reelsGiven),
           viral: sum(creatorDailyMetrics.viralVideos),
           leads: sum(creatorDailyMetrics.leadsGenerated),
+          pics: sum(creatorDailyMetrics.picsGiven),
           teamVideos: sum(creatorDailyMetrics.instagramVideos),
         })
         .from(creatorDailyMetrics)
@@ -100,6 +105,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           reels: sum(creatorAgentDailyMetrics.reelsGiven),
           viral: sum(creatorAgentDailyMetrics.viralVideos),
           leads: sum(creatorAgentDailyMetrics.leadsGenerated),
+          pics: sum(creatorAgentDailyMetrics.picsGiven),
         })
         .from(creatorAgentDailyMetrics)
         .innerJoin(dailyLogs, eq(creatorAgentDailyMetrics.logId, dailyLogs.id))
@@ -146,6 +152,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           reelsTarget: weeklyTargets.reelsTarget,
           viralVideosTarget: weeklyTargets.viralVideosTarget,
           leadsTarget: weeklyTargets.leadsTarget,
+          picsTarget: weeklyTargets.picsTarget,
           teamVideosTarget: weeklyTargets.teamVideosTarget,
         })
         .from(weeklyTargets)
@@ -178,6 +185,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
       agentTargets.reels += n(r.reelsTarget) * f;
       agentTargets.viral += n(r.viralVideosTarget) * f;
       agentTargets.leads += n(r.leadsTarget) * f;
+      agentTargets.pics += n(r.picsTarget) * f;
     }
   }
 
@@ -210,6 +218,8 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
     viralTotal,
     logsSubmitted: n(sales?.logs),
     daysPresent: n(sales?.present),
+    daysRemote: n(sales?.remote),
+    daysHybrid: n(sales?.hybrid),
     daysAbsent: n(sales?.absent),
     targetsMet: scored.filter((m) => m.actual >= m.target).length,
     targetsSet: scored.length,

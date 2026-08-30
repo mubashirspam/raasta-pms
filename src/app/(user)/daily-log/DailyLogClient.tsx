@@ -18,7 +18,7 @@ type MemberWithRelations = TeamMember & {
 };
 
 type Step = 'form' | 'receipt';
-type Attendance = 'present' | 'absent';
+type Attendance = 'present' | 'remote' | 'hybrid' | 'absent';
 
 interface Props {
   member: MemberWithRelations;
@@ -28,6 +28,8 @@ interface Props {
 
 const ATTENDANCE_OPTIONS = [
   { value: 'present', label: '✅ Present' },
+  { value: 'remote', label: '🏠 Remote' },
+  { value: 'hybrid', label: '🔀 Hybrid' },
   { value: 'absent', label: '❌ Absent' },
 ];
 
@@ -63,7 +65,12 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const [agentMetrics, setAgentMetrics] = useState<
     Record<
       string,
-      { reelsGiven: number; leadsGenerated: number; viral: Record<string, number> }
+      {
+        reelsGiven: number;
+        leadsGenerated: number;
+        picsGiven: number;
+        viral: Record<string, number>;
+      }
     >
   >({});
   const [instagramVideos, setInstagramVideos] = useState(0);
@@ -81,15 +88,17 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
 
   // The selected creator's roster and the day's totals summed across it.
 
-  function metric(agentId: string, key: 'reelsGiven' | 'leadsGenerated') {
+  type AgentMetricKey = 'reelsGiven' | 'leadsGenerated' | 'picsGiven';
+
+  function metric(agentId: string, key: AgentMetricKey) {
     return agentMetrics[agentId]?.[key] ?? 0;
   }
 
-  function setMetric(agentId: string, key: 'reelsGiven' | 'leadsGenerated', value: number) {
+  function setMetric(agentId: string, key: AgentMetricKey, value: number) {
     setAgentMetrics((prev) => ({
       ...prev,
       [agentId]: {
-        ...{ reelsGiven: 0, leadsGenerated: 0, viral: {} },
+        ...{ reelsGiven: 0, leadsGenerated: 0, picsGiven: 0, viral: {} },
         ...prev[agentId],
         [key]: Math.max(0, value),
       },
@@ -103,7 +112,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   // Steppers never go below zero.
   function bumpViral(agentId: string, platform: string, delta: number) {
     setAgentMetrics((prev) => {
-      const cur = prev[agentId] ?? { reelsGiven: 0, leadsGenerated: 0, viral: {} };
+      const cur = prev[agentId] ?? { reelsGiven: 0, leadsGenerated: 0, picsGiven: 0, viral: {} };
       const next = Math.max(0, (cur.viral?.[platform] ?? 0) + delta);
       return {
         ...prev,
@@ -119,6 +128,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const totalReels = myTeam.reduce((s, a) => s + metric(a.id, 'reelsGiven'), 0);
   const totalViral = myTeam.reduce((s, a) => s + agentViralTotal(a.id), 0);
   const totalLeads = myTeam.reduce((s, a) => s + metric(a.id, 'leadsGenerated'), 0);
+  const totalPics = myTeam.reduce((s, a) => s + metric(a.id, 'picsGiven'), 0);
 
   // Detail rows must match the summed totals, so resize as the per-agent
   // numbers change rather than off a single input's onChange.
@@ -166,6 +176,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
               agentId: a.id,
               reelsGiven: metric(a.id, 'reelsGiven'),
               leadsGenerated: metric(a.id, 'leadsGenerated'),
+              picsGiven: metric(a.id, 'picsGiven'),
               viralPlatforms: VIRAL_PLATFORMS.filter((pl) => viralCount(a.id, pl) > 0).map((pl) => ({
                 platform: pl,
                 count: viralCount(a.id, pl),
@@ -424,7 +435,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                             <div>
                               <div className="flex justify-between items-center mb-1.5">
                                 <label className="text-xs text-raasta-muted font-medium">
-                                  Video Got Viral (100k+ views)
+                                  Previous Video crossed 100K+ Views
                                 </label>
                                 <span className="text-xs text-raasta-ink font-semibold">
                                   {agentViralTotal(agent.id)}
@@ -468,17 +479,21 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                             <Input label="Leads Generated" type="number" min="0"
                               value={metric(agent.id, 'leadsGenerated')}
                               onChange={(e) => setMetric(agent.id, 'leadsGenerated', +e.target.value)} />
+                            <Input label="Pics / Carousel / Poster" type="number" min="0"
+                              value={metric(agent.id, 'picsGiven')}
+                              onChange={(e) => setMetric(agent.id, 'picsGiven', +e.target.value)} />
                           </div>
                         ))}
                         <div className="flex gap-4 text-xs text-raasta-muted pt-1">
                           <span>Reels: <span className="text-raasta-ink font-medium">{totalReels}</span></span>
                           <span>Viral: <span className="text-raasta-ink font-medium">{totalViral}</span></span>
                           <span>Leads: <span className="text-raasta-ink font-medium">{totalLeads}</span></span>
+                          <span>Pics: <span className="text-raasta-ink font-medium">{totalPics}</span></span>
                         </div>
                       </div>
                     )}
                     <div>
-                      <Input label="Team Videos Given" type="number" min="0"
+                      <Input label="Team / Raasta Page Videos Given" type="number" min="0"
                         value={instagramVideos}
                         onChange={(e) => setInstagramVideos(+e.target.value)} />
                     </div>

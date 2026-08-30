@@ -167,6 +167,7 @@ export async function submitCreatorLog(
         0,
       ),
       leadsGenerated: data.agentMetrics.reduce((s, m) => s + m.leadsGenerated, 0),
+      picsGiven: data.agentMetrics.reduce((s, m) => s + m.picsGiven, 0),
       instagramVideos: data.instagramVideos,
       remarks: data.remarks,
     });
@@ -179,6 +180,7 @@ export async function submitCreatorLog(
         reelsGiven: m.reelsGiven,
         viralVideos: m.viralPlatforms.reduce((x, r) => x + r.count, 0),
         leadsGenerated: m.leadsGenerated,
+        picsGiven: m.picsGiven,
       })),
     );
 

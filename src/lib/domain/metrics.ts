@@ -50,6 +50,8 @@ export interface MemberAnalytics {
   viralTotal: number;
   logsSubmitted: number;
   daysPresent: number;
+  daysRemote: number;
+  daysHybrid: number;
   daysAbsent: number;
 }
 
@@ -96,6 +98,7 @@ export interface TargetTotals {
   reels: number;
   viral: number;
   leads: number;
+  pics: number;
   teamVideos: number;
 }
 
@@ -107,6 +110,7 @@ export const emptyTargets = (): TargetTotals => ({
   reels: 0,
   viral: 0,
   leads: 0,
+  pics: 0,
   teamVideos: 0,
 });
 
@@ -121,6 +125,7 @@ export function accumulateTarget(
     reelsTarget?: unknown;
     viralVideosTarget?: unknown;
     leadsTarget?: unknown;
+    picsTarget?: unknown;
     teamVideosTarget?: unknown;
   },
   factor: number,
@@ -132,6 +137,7 @@ export function accumulateTarget(
   into.reels += num(row.reelsTarget) * factor;
   into.viral += num(row.viralVideosTarget) * factor;
   into.leads += num(row.leadsTarget) * factor;
+  into.pics += num(row.picsTarget) * factor;
   into.teamVideos += num(row.teamVideosTarget) * factor;
 }
 
@@ -151,6 +157,7 @@ export interface CreatorAggregate {
   reels?: unknown;
   viral?: unknown;
   leads?: unknown;
+  pics?: unknown;
   teamVideos?: unknown;
 }
 
@@ -158,6 +165,7 @@ export interface CreditedAggregate {
   reels?: unknown;
   viral?: unknown;
   leads?: unknown;
+  pics?: unknown;
 }
 
 export interface MemberRowInput {
@@ -187,9 +195,15 @@ export function buildMemberRows(input: MemberRowInput): {
     return {
       metrics: [
         metric('reels', 'Reels Given', num(creator?.reels), ownTargets.reels),
-        metric('viral', 'Viral Videos', viralTotal, ownTargets.viral),
+        metric('viral', 'Viral Videos (100K+ Views)', viralTotal, ownTargets.viral),
         metric('leads', 'Leads Generated', num(creator?.leads), ownTargets.leads),
-        metric('teamVideos', 'Team Videos', num(creator?.teamVideos), ownTargets.teamVideos),
+        metric('pics', 'Pics / Carousel / Poster', num(creator?.pics), ownTargets.pics),
+        metric(
+          'teamVideos',
+          'Team / Raasta Page Videos',
+          num(creator?.teamVideos),
+          ownTargets.teamVideos,
+        ),
       ],
       cumulative: [],
     };
@@ -206,8 +220,9 @@ export function buildMemberRows(input: MemberRowInput): {
       metric('revenue', 'Revenue', num(sales?.revenue), ownTargets.revenue, 'currency'),
       // Delivered by the content creators who carry this agent on their team.
       metric('reelsReceived', 'Reels From Creators', num(credited?.reels), agentTargets.reels),
-      metric('viralReceived', 'Viral Videos', viralTotal, agentTargets.viral),
+      metric('viralReceived', 'Viral Videos (100K+ Views)', viralTotal, agentTargets.viral),
       metric('leadsReceived', 'Leads From Creators', num(credited?.leads), agentTargets.leads),
+      metric('pics', 'Pics / Carousel / Poster', num(credited?.pics), agentTargets.pics),
     ],
     cumulative: [
       stat('organicCallTime', 'Organic Call Time', organicMins, 'duration'),

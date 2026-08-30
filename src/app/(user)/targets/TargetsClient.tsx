@@ -33,7 +33,12 @@ interface Props {
 
 type Step = 'week' | 'form' | 'review' | 'receipt';
 
-const EMPTY_AGENT = { reelsTarget: '0', viralVideosTarget: '0', leadsTarget: '0' };
+const EMPTY_AGENT = {
+  reelsTarget: '0',
+  viralVideosTarget: '0',
+  leadsTarget: '0',
+  picsTarget: '0',
+};
 type AgentTargets = Record<string, typeof EMPTY_AGENT>;
 
 export function TargetsClient({
@@ -108,6 +113,7 @@ export function TargetsClient({
               reelsTarget: agentField(a.id, 'reelsTarget'),
               viralVideosTarget: agentField(a.id, 'viralVideosTarget'),
               leadsTarget: agentField(a.id, 'leadsTarget'),
+              picsTarget: agentField(a.id, 'picsTarget'),
             })),
           })
         : await submitSalesTarget({
@@ -215,15 +221,16 @@ export function TargetsClient({
             <div className="space-y-2 text-sm">
               {isCreator ? (
                 <>
-                  <Row label="Team Videos" value={String(creatorRow?.teamVideosTarget ?? 0)} />
+                  <Row label="Team / Raasta Page Videos" value={String(creatorRow?.teamVideosTarget ?? 0)} />
                   {agentRows.map((r) => (
                     <div key={String(r.agentId)} className="pt-2 mt-2 border-t border-raasta-line">
                       <p className="font-semibold text-raasta-ink text-sm mb-1">
                         {(r.agent as TeamMember | null)?.fullName ?? 'Agent'}
                       </p>
                       <Row label="Reels" value={String(r.reelsTarget ?? 0)} />
-                      <Row label="Viral Videos" value={String(r.viralVideosTarget ?? 0)} />
+                      <Row label="Viral Videos (100K+ Views)" value={String(r.viralVideosTarget ?? 0)} />
                       <Row label="Leads" value={String(r.leadsTarget ?? 0)} />
+                      <Row label="Pics / Carousel / Poster" value={String(r.picsTarget ?? 0)} />
                     </div>
                   ))}
                 </>
@@ -254,7 +261,7 @@ export function TargetsClient({
               <div className="space-y-3">
                 <CardTitle>Creator Target</CardTitle>
                 <Input
-                  label="Team Videos Target"
+                  label="Team / Raasta Page Videos Target"
                   type="number"
                   min="0"
                   value={String(field('teamVideosTarget'))}
@@ -314,12 +321,15 @@ export function TargetsClient({
                   <Input label="Reels Target" type="number" min="0"
                     value={agentField(agent.id, 'reelsTarget')}
                     onChange={(e) => setAgentField(agent.id, 'reelsTarget', e.target.value)} />
-                  <Input label="Viral Videos Target" type="number" min="0"
+                  <Input label="Viral Videos (100K+ Views)" type="number" min="0"
                     value={agentField(agent.id, 'viralVideosTarget')}
                     onChange={(e) => setAgentField(agent.id, 'viralVideosTarget', e.target.value)} />
                   <Input label="Leads Target" type="number" min="0"
                     value={agentField(agent.id, 'leadsTarget')}
                     onChange={(e) => setAgentField(agent.id, 'leadsTarget', e.target.value)} />
+                  <Input label="Pics / Carousel / Poster Target" type="number" min="0"
+                    value={agentField(agent.id, 'picsTarget')}
+                    onChange={(e) => setAgentField(agent.id, 'picsTarget', e.target.value)} />
                 </div>
               ))}
             </div>
@@ -377,13 +387,14 @@ export function TargetsClient({
             <Row label="Week" value={selectedWeek?.label ?? ''} />
             {isCreator ? (
               <>
-                <Row label="Team Videos" value={String(field('teamVideosTarget'))} />
+                <Row label="Team / Raasta Page Videos" value={String(field('teamVideosTarget'))} />
                 {myTeam.map((agent) => (
                   <div key={agent.id} className="pt-2 mt-2 border-t border-raasta-line">
                     <p className="font-semibold text-raasta-ink text-sm mb-1">{agent.fullName}</p>
                     <Row label="Reels" value={agentField(agent.id, 'reelsTarget')} />
-                    <Row label="Viral Videos" value={agentField(agent.id, 'viralVideosTarget')} />
+                    <Row label="Viral Videos (100K+ Views)" value={agentField(agent.id, 'viralVideosTarget')} />
                     <Row label="Leads" value={agentField(agent.id, 'leadsTarget')} />
+                    <Row label="Pics / Carousel / Poster" value={agentField(agent.id, 'picsTarget')} />
                   </div>
                 ))}
               </>

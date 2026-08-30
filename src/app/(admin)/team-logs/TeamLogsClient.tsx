@@ -33,14 +33,32 @@ const gridColumn = (weekday: number) => (weekday === 0 ? 7 : weekday);
 
 const STATE_STYLES: Record<DayState, string> = {
   present: 'bg-gold-50 border-gold-300 text-gold-700 hover:border-gold-400',
+  remote: 'bg-ok-50 border-ok-500/30 text-ok-600 hover:border-ok-500',
+  hybrid: 'bg-warn-50 border-warn-500/30 text-warn-500 hover:border-warn-500',
   absent: 'bg-bad-50 border-bad-500/30 text-bad-600 hover:border-bad-500',
   missing: 'bg-raasta-surface border-dashed border-raasta-border text-raasta-faint hover:border-raasta-faint',
   off: 'bg-raasta-subtle border-transparent text-raasta-faint/60',
   future: 'bg-raasta-surface border-transparent text-raasta-faint/50',
 };
 
+const ATTENDANCE_LABEL: Record<string, string> = {
+  present: 'Present',
+  remote: 'Remote',
+  hybrid: 'Hybrid',
+  absent: 'Absent',
+};
+
+const ATTENDANCE_VARIANT: Record<string, 'green' | 'gold' | 'amber' | 'red'> = {
+  present: 'green',
+  remote: 'gold',
+  hybrid: 'amber',
+  absent: 'red',
+};
+
 const LEGEND: Array<{ state: DayState; label: string }> = [
-  { state: 'present', label: 'Logged' },
+  { state: 'present', label: 'Present' },
+  { state: 'remote', label: 'Remote' },
+  { state: 'hybrid', label: 'Hybrid' },
   { state: 'absent', label: 'Absent' },
   { state: 'missing', label: 'No log' },
   { state: 'off', label: 'Holiday' },
@@ -299,8 +317,8 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
           </p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <Badge variant={detail.attendance === 'absent' ? 'red' : 'green'}>
-            {detail.attendance === 'absent' ? 'Absent' : 'Present'}
+          <Badge variant={ATTENDANCE_VARIANT[detail.attendance] ?? 'gray'}>
+            {ATTENDANCE_LABEL[detail.attendance] ?? detail.attendance}
           </Badge>
           {detail.backdated && <Badge variant="amber">Backdated</Badge>}
         </div>
@@ -360,11 +378,12 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
 
           {isCreator && cm && (
             <Section title="Creator output">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <Stat label="Reels given" value={cm.reelsGiven} />
                 <Stat label="Viral videos" value={cm.viralVideos} />
                 <Stat label="Leads generated" value={cm.leadsGenerated} />
-                <Stat label="Team videos" value={cm.instagramVideos} />
+                <Stat label="Pics / carousel / poster" value={cm.picsGiven} />
+                <Stat label="Team / Raasta page videos" value={cm.instagramVideos} />
               </div>
               {cm.remarks && (
                 <p className="text-sm text-raasta-ink mt-3">
@@ -385,6 +404,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                       <th className="font-medium py-1.5 text-right">Reels</th>
                       <th className="font-medium py-1.5 text-right">Viral</th>
                       <th className="font-medium py-1.5 text-right">Leads</th>
+                      <th className="font-medium py-1.5 text-right">Pics</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -405,6 +425,9 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                         <td className="py-2 text-right tabular-nums text-raasta-ink">{am.viralVideos}</td>
                         <td className="py-2 text-right tabular-nums text-raasta-ink">
                           {am.leadsGenerated}
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-raasta-ink">
+                          {am.picsGiven}
                         </td>
                       </tr>
                     ))}

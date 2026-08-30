@@ -66,6 +66,7 @@ async function collectTargets(range: DateRange) {
       reelsTarget: weeklyTargets.reelsTarget,
       viralVideosTarget: weeklyTargets.viralVideosTarget,
       leadsTarget: weeklyTargets.leadsTarget,
+      picsTarget: weeklyTargets.picsTarget,
       teamVideosTarget: weeklyTargets.teamVideosTarget,
     })
     .from(weeklyTargets)
@@ -98,6 +99,7 @@ async function collectTargets(range: DateRange) {
       agent.reels += n(r.reelsTarget) * f;
       agent.viral += n(r.viralVideosTarget) * f;
       agent.leads += n(r.leadsTarget) * f;
+      agent.pics += n(r.picsTarget) * f;
       byAgent.set(r.agentId, agent);
     }
   }
@@ -150,6 +152,8 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         leadsReceived: sum(dailyLogs.leadsReceived),
         logs: count(),
         present: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'present')`,
+        remote: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'remote')`,
+        hybrid: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'hybrid')`,
         absent: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'absent')`,
       })
       .from(dailyLogs)
@@ -163,6 +167,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         reels: sum(creatorDailyMetrics.reelsGiven),
         viral: sum(creatorDailyMetrics.viralVideos),
         leads: sum(creatorDailyMetrics.leadsGenerated),
+        pics: sum(creatorDailyMetrics.picsGiven),
         teamVideos: sum(creatorDailyMetrics.instagramVideos),
       })
       .from(creatorDailyMetrics)
@@ -177,6 +182,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         reels: sum(creatorAgentDailyMetrics.reelsGiven),
         viral: sum(creatorAgentDailyMetrics.viralVideos),
         leads: sum(creatorAgentDailyMetrics.leadsGenerated),
+        pics: sum(creatorAgentDailyMetrics.picsGiven),
       })
       .from(creatorAgentDailyMetrics)
       .innerJoin(dailyLogs, eq(creatorAgentDailyMetrics.logId, dailyLogs.id))
@@ -292,6 +298,8 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       viralTotal,
       logsSubmitted: n(s?.logs),
       daysPresent: n(s?.present),
+      daysRemote: n(s?.remote),
+      daysHybrid: n(s?.hybrid),
       daysAbsent: n(s?.absent),
     };
   });
@@ -314,11 +322,17 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     metric('videoCalls', 'Video Calls', sumOf(salesRows, (r) => r.videoCalls), targets.company.videoCalls),
     metric('faceToFace', 'Face-to-Face', sumOf(salesRows, (r) => r.faceToFace), targets.company.faceToFace),
     metric('reels', 'Reels Given', sumOf(creatorRows, (r) => r.reels), targets.company.reels),
-    metric('viral', 'Viral Videos', companyViral, targets.company.viral),
+    metric('viral', 'Viral Videos (100K+ Views)', companyViral, targets.company.viral),
     metric('leads', 'Leads Generated', sumOf(creatorRows, (r) => r.leads), targets.company.leads),
     metric(
+      'pics',
+      'Pics / Carousel / Poster',
+      sumOf(creatorRows, (r) => r.pics),
+      targets.company.pics,
+    ),
+    metric(
       'teamVideos',
-      'Team Videos',
+      'Team / Raasta Page Videos',
       sumOf(creatorRows, (r) => r.teamVideos),
       targets.company.teamVideos,
     ),

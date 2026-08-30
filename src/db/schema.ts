@@ -192,6 +192,7 @@ export const weeklyTargets = pgTable(
     reelsTarget: integer('reels_target'),
     viralVideosTarget: integer('viral_videos_target'),
     leadsTarget: integer('leads_target'),
+    picsTarget: integer('pics_target'),
     teamVideosTarget: integer('team_videos_target'),
     // Position / status
     positionId: integer('position_id').references(() => positions.id),
@@ -248,6 +249,7 @@ export const dailyLogs = pgTable(
       .notNull()
       .references(() => teamMembers.id, { onDelete: 'restrict' }),
     logDate: date('log_date').notNull(),
+    // 'present' | 'remote' | 'hybrid' | 'absent' — only 'absent' is a non-working day.
     attendance: varchar('attendance', { length: 20 }).notNull(),
     absenceNote: text('absence_note'),
     arrivalTiming: varchar('arrival_timing', { length: 30 }),
@@ -309,6 +311,7 @@ export const creatorDailyMetrics = pgTable(
     reelsGiven: integer('reels_given').notNull().default(0),
     viralVideos: integer('viral_videos').notNull().default(0),
     leadsGenerated: integer('leads_generated').notNull().default(0),
+    picsGiven: integer('pics_given').notNull().default(0),
     instagramVideos: integer('instagram_videos').notNull().default(0),
     remarks: varchar('remarks', { length: 500 }),
   },
@@ -330,6 +333,7 @@ export const creatorAgentDailyMetrics = pgTable(
     reelsGiven: integer('reels_given').notNull().default(0),
     viralVideos: integer('viral_videos').notNull().default(0),
     leadsGenerated: integer('leads_generated').notNull().default(0),
+    picsGiven: integer('pics_given').notNull().default(0),
   },
   (t) => ({
     logAgentUniq: uniqueIndex('creator_agent_daily_metrics_log_agent_uniq').on(t.logId, t.agentId),

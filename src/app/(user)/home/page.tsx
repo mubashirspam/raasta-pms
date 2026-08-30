@@ -98,12 +98,18 @@ export default async function UserHomePage() {
             </div>
           )}
 
-          <div className="flex gap-4 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
             <span>
               Logs <span className="text-raasta-ink tabular-nums font-medium">{mine.logsSubmitted}</span>
             </span>
             <span>
               Present <span className="text-raasta-ink tabular-nums font-medium">{mine.daysPresent}</span>
+            </span>
+            <span>
+              Remote <span className="text-raasta-ink tabular-nums font-medium">{mine.daysRemote}</span>
+            </span>
+            <span>
+              Hybrid <span className="text-raasta-ink tabular-nums font-medium">{mine.daysHybrid}</span>
             </span>
             <span>
               Absent <span className="text-raasta-ink tabular-nums font-medium">{mine.daysAbsent}</span>

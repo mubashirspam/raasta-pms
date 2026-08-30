@@ -513,12 +513,18 @@ function MemberCard({ ms }: { ms: MemberAnalytics }) {
         </div>
       )}
 
-      <div className="flex gap-4 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
         <span>
           Logs <span className="text-raasta-ink tabular-nums font-medium">{ms.logsSubmitted}</span>
         </span>
         <span>
           Present <span className="text-raasta-ink tabular-nums font-medium">{ms.daysPresent}</span>
+        </span>
+        <span>
+          Remote <span className="text-raasta-ink tabular-nums font-medium">{ms.daysRemote}</span>
+        </span>
+        <span>
+          Hybrid <span className="text-raasta-ink tabular-nums font-medium">{ms.daysHybrid}</span>
         </span>
         <span>
           Absent <span className="text-raasta-ink tabular-nums font-medium">{ms.daysAbsent}</span>
