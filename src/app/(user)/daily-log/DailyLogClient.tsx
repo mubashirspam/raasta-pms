@@ -57,6 +57,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const [leadsReceived, setLeadsReceived] = useState(0);
   const [salesRevenue, setSalesRevenue] = useState(0);
   const [teamRevenue, setTeamRevenue] = useState(0);
+  const [connectedSelfCircle, setConnectedSelfCircle] = useState(0);
   const [learnedToday, setLearnedToday] = useState('');
   const [issuesToday, setIssuesToday] = useState('');
   const [developerVisited, setDeveloperVisited] = useState(false);
@@ -159,6 +160,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
             leadsReceived,
             salesRevenue,
             teamRevenue: isLerBdm ? teamRevenue : undefined,
+            connectedSelfCircle,
             learnedToday: learnedToday || undefined,
             issuesToday: issuesToday || undefined,
             developerVisited,
@@ -381,6 +383,9 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                 <Card>
                   <CardTitle className="mb-3">Reflections</CardTitle>
                   <div className="space-y-3">
+                    <Input label="Connected Self Circle" type="number" min="0"
+                      value={connectedSelfCircle}
+                      onChange={(e) => setConnectedSelfCircle(+e.target.value)} />
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-raasta-muted uppercase tracking-wide">
                         What did you learn today? (max 150 chars)

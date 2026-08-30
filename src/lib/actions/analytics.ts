@@ -142,6 +142,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       .select({
         memberId: dailyLogs.memberId,
         connectedCalls: sum(dailyLogs.connectedCalls),
+        connectedSelfCircle: sum(dailyLogs.connectedSelfCircle),
         videoCalls: sum(dailyLogs.videoCalls),
         faceToFace: sum(dailyLogs.faceToFace),
         organicCallMinutes: sum(dailyLogs.organicCallMinutes),
@@ -346,6 +347,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     stat('reassignedCallTime', 'Reassigned Call Time', marketingMinutes, 'duration'),
     stat('totalCallTime', 'Total Call Time', organicMinutes + marketingMinutes, 'duration'),
     stat('leadsLogged', 'Leads Received', sumOf(salesRows, (r) => r.leadsReceived)),
+    stat('selfCircle', 'Connected Self Circle', sumOf(salesRows, (r) => r.connectedSelfCircle)),
   ];
 
   let running = 0;

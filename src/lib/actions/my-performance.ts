@@ -72,6 +72,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
       db
         .select({
           connectedCalls: sum(dailyLogs.connectedCalls),
+          connectedSelfCircle: sum(dailyLogs.connectedSelfCircle),
           videoCalls: sum(dailyLogs.videoCalls),
           faceToFace: sum(dailyLogs.faceToFace),
           revenue: sum(dailyLogs.salesRevenue),

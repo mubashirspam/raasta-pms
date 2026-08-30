@@ -145,6 +145,7 @@ export function accumulateTarget(
 
 export interface SalesAggregate {
   connectedCalls?: unknown;
+  connectedSelfCircle?: unknown;
   videoCalls?: unknown;
   faceToFace?: unknown;
   revenue?: unknown;
@@ -229,6 +230,7 @@ export function buildMemberRows(input: MemberRowInput): {
       stat('reassignedCallTime', 'Reassigned Call Time', marketingMins, 'duration'),
       stat('totalCallTime', 'Total Call Time', organicMins + marketingMins, 'duration'),
       stat('leadsLogged', 'Leads Received', num(sales?.leadsReceived)),
+      stat('selfCircle', 'Connected Self Circle', num(sales?.connectedSelfCircle)),
     ],
   };
 }

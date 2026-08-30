@@ -270,6 +270,8 @@ export const dailyLogs = pgTable(
     salesRevenue: decimal('sales_revenue', { precision: 14, scale: 2 }).notNull().default('0'),
     // LER/BDM also report revenue brought in by their team.
     teamRevenue: decimal('team_revenue', { precision: 14, scale: 2 }),
+    // People reached through the agent's own network, counted on the daily log.
+    connectedSelfCircle: integer('connected_self_circle').notNull().default(0),
     learnedToday: varchar('learned_today', { length: 150 }),
     issuesToday: varchar('issues_today', { length: 250 }),
     status: varchar('status', { length: 20 }).notNull().default('submitted'),

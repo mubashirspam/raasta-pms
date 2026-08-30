@@ -368,6 +368,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                 <Stat label="Face-to-face" value={detail.faceToFace} />
                 <Stat label="Reels uploaded" value={detail.reelsUploaded} />
                 <Stat label="Leads received" value={detail.leadsReceived} />
+                <Stat label="Connected self circle" value={detail.connectedSelfCircle} />
                 <Stat label="Sales revenue" value={fmtAED(detail.salesRevenue)} />
                 {detail.teamRevenue !== null && (
                   <Stat label="Team revenue" value={fmtAED(detail.teamRevenue)} />

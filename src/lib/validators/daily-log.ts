@@ -44,6 +44,7 @@ export const salesLogSchema = z.object({
   salesRevenue: positiveDec,
   // Only LER/BDM submit this; the form hides it for plain Agents.
   teamRevenue: positiveDec.optional(),
+  connectedSelfCircle: positiveInt,
   learnedToday: z.string().max(150).optional(),
   issuesToday: z.string().max(250).optional(),
   developerVisited: z.boolean(),
