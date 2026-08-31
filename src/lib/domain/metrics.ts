@@ -51,8 +51,20 @@ export interface MemberAnalytics {
   logsSubmitted: number;
   daysPresent: number;
   daysRemote: number;
-  daysHybrid: number;
   daysAbsent: number;
+  /**
+   * The other side of the creator↔agent roster: for a content creator these are
+   * the sales agents they carry; for a sales agent, the creators carrying them.
+   */
+  connections: MemberLink[];
+}
+
+/** A person on the other end of a creator/agent link. */
+export interface MemberLink {
+  memberId: string;
+  fullName: string;
+  memberCode: string;
+  positionName: string;
 }
 
 export interface RangeAnalytics {

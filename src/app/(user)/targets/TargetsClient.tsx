@@ -33,12 +33,17 @@ interface Props {
 
 type Step = 'week' | 'form' | 'review' | 'receipt';
 
+// Every target starts blank so nobody has to clear a zero to type. A field
+// left empty is submitted as 0.
 const EMPTY_AGENT = {
-  reelsTarget: '0',
-  viralVideosTarget: '0',
-  leadsTarget: '0',
-  picsTarget: '0',
+  reelsTarget: '',
+  viralVideosTarget: '',
+  leadsTarget: '',
+  picsTarget: '',
 };
+
+/** An untouched (or cleared) target field counts as zero. */
+const n0 = (v: string | number | undefined) => (v === '' || v == null ? 0 : Number(v));
 type AgentTargets = Record<string, typeof EMPTY_AGENT>;
 
 export function TargetsClient({
@@ -69,12 +74,12 @@ export function TargetsClient({
   const teamIds = new Set(myTeam.map((a) => a.id));
   const addableAgents = salesAgents.filter((a) => !teamIds.has(a.id));
 
-  const field = (k: string, d: number | string = 0) => formData[k] ?? d;
+  const field = (k: string, d: number | string = '') => formData[k] ?? d;
   const setField = (k: string, v: string | number) =>
     setFormData((p) => ({ ...p, [k]: v }));
 
   const agentField = (id: string, k: keyof typeof EMPTY_AGENT) =>
-    agentTargets[id]?.[k] ?? '0';
+    agentTargets[id]?.[k] ?? '';
   const setAgentField = (id: string, k: keyof typeof EMPTY_AGENT, v: string) =>
     setAgentTargets((p) => ({ ...p, [id]: { ...EMPTY_AGENT, ...p[id], [k]: v } }));
 
@@ -107,20 +112,24 @@ export function TargetsClient({
         ? await submitCreatorTarget({
             memberId: member.id,
             weekId: selectedWeek!.id,
-            teamVideosTarget: field('teamVideosTarget'),
+            teamVideosTarget: n0(field('teamVideosTarget')),
             agentTargets: myTeam.map((a) => ({
               agentId: a.id,
-              reelsTarget: agentField(a.id, 'reelsTarget'),
-              viralVideosTarget: agentField(a.id, 'viralVideosTarget'),
-              leadsTarget: agentField(a.id, 'leadsTarget'),
-              picsTarget: agentField(a.id, 'picsTarget'),
+              reelsTarget: n0(agentField(a.id, 'reelsTarget')),
+              viralVideosTarget: n0(agentField(a.id, 'viralVideosTarget')),
+              leadsTarget: n0(agentField(a.id, 'leadsTarget')),
+              picsTarget: n0(agentField(a.id, 'picsTarget')),
             })),
           })
         : await submitSalesTarget({
             memberId: member.id,
             weekId: selectedWeek!.id,
             positionId: member.positionId,
-            ...formData,
+            connectedCallsTarget: n0(field('connectedCallsTarget')),
+            videoCallsTarget: n0(field('videoCallsTarget')),
+            faceToFaceTarget: n0(field('faceToFaceTarget')),
+            revenueTarget: n0(field('revenueTarget')),
+            teamRevenueAmount: isLerBdm ? n0(field('teamRevenueAmount')) : undefined,
           });
 
       if (!result.success) {
@@ -264,6 +273,7 @@ export function TargetsClient({
                   label="Team / Raasta Page Videos Target"
                   type="number"
                   min="0"
+                  placeholder="0"
                   value={String(field('teamVideosTarget'))}
                   onChange={(e) => setField('teamVideosTarget', e.target.value)}
                 />
@@ -318,16 +328,16 @@ export function TargetsClient({
                       <Trash2 className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
-                  <Input label="Reels Target" type="number" min="0"
+                  <Input label="Reels Target" type="number" min="0" placeholder="0"
                     value={agentField(agent.id, 'reelsTarget')}
                     onChange={(e) => setAgentField(agent.id, 'reelsTarget', e.target.value)} />
-                  <Input label="Viral Videos (100K+ Views)" type="number" min="0"
+                  <Input label="Viral Videos (100K+ Views)" type="number" min="0" placeholder="0"
                     value={agentField(agent.id, 'viralVideosTarget')}
                     onChange={(e) => setAgentField(agent.id, 'viralVideosTarget', e.target.value)} />
-                  <Input label="Leads Target" type="number" min="0"
+                  <Input label="Leads Target" type="number" min="0" placeholder="0"
                     value={agentField(agent.id, 'leadsTarget')}
                     onChange={(e) => setAgentField(agent.id, 'leadsTarget', e.target.value)} />
-                  <Input label="Pics / Carousel / Poster Target" type="number" min="0"
+                  <Input label="Pics / Carousel / Poster Target" type="number" min="0" placeholder="0"
                     value={agentField(agent.id, 'picsTarget')}
                     onChange={(e) => setAgentField(agent.id, 'picsTarget', e.target.value)} />
                 </div>
@@ -336,20 +346,20 @@ export function TargetsClient({
           ) : (
             <div className="space-y-4">
               <CardTitle>Sales Targets</CardTitle>
-              <Input label="Connected Calls Target" type="number" min="0"
+              <Input label="Connected Calls Target" type="number" min="0" placeholder="0"
                 value={String(field('connectedCallsTarget'))}
                 onChange={(e) => setField('connectedCallsTarget', e.target.value)} />
-              <Input label="Video Calls Target" type="number" min="0"
+              <Input label="Video Calls Target" type="number" min="0" placeholder="0"
                 value={String(field('videoCallsTarget'))}
                 onChange={(e) => setField('videoCallsTarget', e.target.value)} />
-              <Input label="Face-to-Face Target" type="number" min="0"
+              <Input label="Face-to-Face Target" type="number" min="0" placeholder="0"
                 value={String(field('faceToFaceTarget'))}
                 onChange={(e) => setField('faceToFaceTarget', e.target.value)} />
-              <Input label="Revenue Target (AED)" type="number" min="0"
+              <Input label="Revenue Target (AED)" type="number" min="0" placeholder="0"
                 value={String(field('revenueTarget'))}
                 onChange={(e) => setField('revenueTarget', e.target.value)} />
               {isLerBdm && (
-                <Input label="Team Revenue Target (AED) — LER/BDM" type="number" min="0"
+                <Input label="Team Revenue Target (AED) — LER/BDM" type="number" min="0" placeholder="0"
                   value={String(field('teamRevenueAmount'))}
                   onChange={(e) => setField('teamRevenueAmount', e.target.value)} />
               )}
@@ -387,25 +397,25 @@ export function TargetsClient({
             <Row label="Week" value={selectedWeek?.label ?? ''} />
             {isCreator ? (
               <>
-                <Row label="Team / Raasta Page Videos" value={String(field('teamVideosTarget'))} />
+                <Row label="Team / Raasta Page Videos" value={String(n0(field('teamVideosTarget')))} />
                 {myTeam.map((agent) => (
                   <div key={agent.id} className="pt-2 mt-2 border-t border-raasta-line">
                     <p className="font-semibold text-raasta-ink text-sm mb-1">{agent.fullName}</p>
-                    <Row label="Reels" value={agentField(agent.id, 'reelsTarget')} />
-                    <Row label="Viral Videos (100K+ Views)" value={agentField(agent.id, 'viralVideosTarget')} />
-                    <Row label="Leads" value={agentField(agent.id, 'leadsTarget')} />
-                    <Row label="Pics / Carousel / Poster" value={agentField(agent.id, 'picsTarget')} />
+                    <Row label="Reels" value={String(n0(agentField(agent.id, 'reelsTarget')))} />
+                    <Row label="Viral Videos (100K+ Views)" value={String(n0(agentField(agent.id, 'viralVideosTarget')))} />
+                    <Row label="Leads" value={String(n0(agentField(agent.id, 'leadsTarget')))} />
+                    <Row label="Pics / Carousel / Poster" value={String(n0(agentField(agent.id, 'picsTarget')))} />
                   </div>
                 ))}
               </>
             ) : (
               <>
-                <Row label="Connected Calls" value={String(field('connectedCallsTarget'))} />
-                <Row label="Video Calls" value={String(field('videoCallsTarget'))} />
-                <Row label="Face-to-Face" value={String(field('faceToFaceTarget'))} />
-                <Row label="Revenue Target" value={fmtAED(Number(field('revenueTarget')))} />
+                <Row label="Connected Calls" value={String(n0(field('connectedCallsTarget')))} />
+                <Row label="Video Calls" value={String(n0(field('videoCallsTarget')))} />
+                <Row label="Face-to-Face" value={String(n0(field('faceToFaceTarget')))} />
+                <Row label="Revenue Target" value={fmtAED(n0(field('revenueTarget')))} />
                 {isLerBdm && (
-                  <Row label="Team Revenue" value={fmtAED(Number(field('teamRevenueAmount')))} />
+                  <Row label="Team Revenue" value={fmtAED(n0(field('teamRevenueAmount')))} />
                 )}
               </>
             )}

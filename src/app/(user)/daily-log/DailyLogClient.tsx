@@ -18,7 +18,16 @@ type MemberWithRelations = TeamMember & {
 };
 
 type Step = 'form' | 'receipt';
-type Attendance = 'present' | 'remote' | 'hybrid' | 'absent';
+type Attendance = 'present' | 'remote' | 'absent';
+
+/**
+ * Numeric fields start blank rather than at 0 so nobody has to clear a zero to
+ * type. An untouched field submits as 0.
+ */
+type NumField = number | '';
+const n0 = (v: NumField) => (v === '' ? 0 : v);
+const parseNum = (raw: string): NumField =>
+  raw === '' ? '' : Math.max(0, Number(raw));
 
 interface Props {
   member: MemberWithRelations;
@@ -29,7 +38,6 @@ interface Props {
 const ATTENDANCE_OPTIONS = [
   { value: 'present', label: '✅ Present' },
   { value: 'remote', label: '🏠 Remote' },
-  { value: 'hybrid', label: '🔀 Hybrid' },
   { value: 'absent', label: '❌ Absent' },
 ];
 
@@ -46,18 +54,18 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const [arrivalTiming, setArrivalTiming] = useState('Before 9:00 AM');
   const [lateReason, setLateReason] = useState('');
   // Sales fields
-  const [organicCalls, setOrganicCalls] = useState(0);
-  const [marketingCalls, setMarketingCalls] = useState(0);
+  const [organicCalls, setOrganicCalls] = useState<NumField>('');
+  const [marketingCalls, setMarketingCalls] = useState<NumField>('');
   // Call time is held in whole minutes; the picker splits it into h + m.
   const [organicCallMinutes, setOrganicCallMinutes] = useState(0);
   const [marketingCallMinutes, setMarketingCallMinutes] = useState(0);
-  const [videoCalls, setVideoCalls] = useState(0);
-  const [faceToFace, setFaceToFace] = useState(0);
-  const [reelsUploaded, setReelsUploaded] = useState(0);
-  const [leadsReceived, setLeadsReceived] = useState(0);
-  const [salesRevenue, setSalesRevenue] = useState(0);
-  const [teamRevenue, setTeamRevenue] = useState(0);
-  const [connectedSelfCircle, setConnectedSelfCircle] = useState(0);
+  const [videoCalls, setVideoCalls] = useState<NumField>('');
+  const [faceToFace, setFaceToFace] = useState<NumField>('');
+  const [reelsUploaded, setReelsUploaded] = useState<NumField>('');
+  const [leadsReceived, setLeadsReceived] = useState<NumField>('');
+  const [salesRevenue, setSalesRevenue] = useState<NumField>('');
+  const [teamRevenue, setTeamRevenue] = useState<NumField>('');
+  const [connectedSelfCircle, setConnectedSelfCircle] = useState<NumField>('');
   const [learnedToday, setLearnedToday] = useState('');
   const [issuesToday, setIssuesToday] = useState('');
   const [developerVisited, setDeveloperVisited] = useState(false);
@@ -67,21 +75,23 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
     Record<
       string,
       {
-        reelsGiven: number;
-        leadsGenerated: number;
-        picsGiven: number;
+        reelsGiven: NumField;
+        leadsGenerated: NumField;
+        picsGiven: NumField;
         viral: Record<string, number>;
       }
     >
   >({});
-  const [instagramVideos, setInstagramVideos] = useState(0);
+  const [instagramVideos, setInstagramVideos] = useState<NumField>('');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState('');
 
-  const connectedCalls = organicCalls + marketingCalls;
+  const connectedCalls = n0(organicCalls) + n0(marketingCalls);
   const totalCallMinutes = organicCallMinutes + marketingCallMinutes;
   const isAbsent = attendance === 'absent';
+  // Only an office day has an entry time to report; remote days skip the box.
+  const isPresent = attendance === 'present';
   // LER/BDM report their team's revenue on top of their own.
   const isCreator = member.category.name === 'Content Creator';
   const isSales = !isCreator;
@@ -91,17 +101,17 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
 
   type AgentMetricKey = 'reelsGiven' | 'leadsGenerated' | 'picsGiven';
 
-  function metric(agentId: string, key: AgentMetricKey) {
-    return agentMetrics[agentId]?.[key] ?? 0;
+  function metric(agentId: string, key: AgentMetricKey): NumField {
+    return agentMetrics[agentId]?.[key] ?? '';
   }
 
-  function setMetric(agentId: string, key: AgentMetricKey, value: number) {
+  function setMetric(agentId: string, key: AgentMetricKey, value: NumField) {
     setAgentMetrics((prev) => ({
       ...prev,
       [agentId]: {
-        ...{ reelsGiven: 0, leadsGenerated: 0, picsGiven: 0, viral: {} },
+        ...{ reelsGiven: '' as NumField, leadsGenerated: '' as NumField, picsGiven: '' as NumField, viral: {} },
         ...prev[agentId],
-        [key]: Math.max(0, value),
+        [key]: value,
       },
     }));
   }
@@ -113,7 +123,12 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   // Steppers never go below zero.
   function bumpViral(agentId: string, platform: string, delta: number) {
     setAgentMetrics((prev) => {
-      const cur = prev[agentId] ?? { reelsGiven: 0, leadsGenerated: 0, picsGiven: 0, viral: {} };
+      const cur = prev[agentId] ?? {
+        reelsGiven: '' as NumField,
+        leadsGenerated: '' as NumField,
+        picsGiven: '' as NumField,
+        viral: {},
+      };
       const next = Math.max(0, (cur.viral?.[platform] ?? 0) + delta);
       return {
         ...prev,
@@ -126,10 +141,10 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
     return VIRAL_PLATFORMS.reduce((s, pl) => s + viralCount(agentId, pl), 0);
   }
 
-  const totalReels = myTeam.reduce((s, a) => s + metric(a.id, 'reelsGiven'), 0);
+  const totalReels = myTeam.reduce((s, a) => s + n0(metric(a.id, 'reelsGiven')), 0);
   const totalViral = myTeam.reduce((s, a) => s + agentViralTotal(a.id), 0);
-  const totalLeads = myTeam.reduce((s, a) => s + metric(a.id, 'leadsGenerated'), 0);
-  const totalPics = myTeam.reduce((s, a) => s + metric(a.id, 'picsGiven'), 0);
+  const totalLeads = myTeam.reduce((s, a) => s + n0(metric(a.id, 'leadsGenerated')), 0);
+  const totalPics = myTeam.reduce((s, a) => s + n0(metric(a.id, 'picsGiven')), 0);
 
   // Detail rows must match the summed totals, so resize as the per-agent
   // numbers change rather than off a single input's onChange.
@@ -148,19 +163,21 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
             logDate: today,
             attendance,
             absenceNote: absenceNote || undefined,
-            arrivalTiming: isAbsent ? undefined : (arrivalTiming as 'Before 9:00 AM' | '9:00 AM – 9:59 AM' | 'After 9:59 AM'),
-            lateReason: lateReason || undefined,
-            organicCalls,
-            marketingCalls,
+            // Office entry time is only asked for — and only stored — on an
+            // office day.
+            arrivalTiming: isPresent ? (arrivalTiming as 'Before 9:00 AM' | '9:00 AM – 9:59 AM' | 'After 9:59 AM') : undefined,
+            lateReason: isPresent ? lateReason || undefined : undefined,
+            organicCalls: n0(organicCalls),
+            marketingCalls: n0(marketingCalls),
             organicCallMinutes,
             marketingCallMinutes,
-            videoCalls,
-            faceToFace,
-            reelsUploaded,
-            leadsReceived,
-            salesRevenue,
-            teamRevenue: isLerBdm ? teamRevenue : undefined,
-            connectedSelfCircle,
+            videoCalls: n0(videoCalls),
+            faceToFace: n0(faceToFace),
+            reelsUploaded: n0(reelsUploaded),
+            leadsReceived: n0(leadsReceived),
+            salesRevenue: n0(salesRevenue),
+            teamRevenue: isLerBdm ? n0(teamRevenue) : undefined,
+            connectedSelfCircle: n0(connectedSelfCircle),
             learnedToday: learnedToday || undefined,
             issuesToday: issuesToday || undefined,
             developerVisited,
@@ -172,19 +189,19 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
             logDate: today,
             attendance,
             absenceNote: absenceNote || undefined,
-            arrivalTiming: isAbsent ? undefined : (arrivalTiming as 'Before 9:00 AM' | '9:00 AM – 9:59 AM' | 'After 9:59 AM'),
-            lateReason: lateReason || undefined,
+            arrivalTiming: isPresent ? (arrivalTiming as 'Before 9:00 AM' | '9:00 AM – 9:59 AM' | 'After 9:59 AM') : undefined,
+            lateReason: isPresent ? lateReason || undefined : undefined,
             agentMetrics: myTeam.map((a) => ({
               agentId: a.id,
-              reelsGiven: metric(a.id, 'reelsGiven'),
-              leadsGenerated: metric(a.id, 'leadsGenerated'),
-              picsGiven: metric(a.id, 'picsGiven'),
+              reelsGiven: n0(metric(a.id, 'reelsGiven')),
+              leadsGenerated: n0(metric(a.id, 'leadsGenerated')),
+              picsGiven: n0(metric(a.id, 'picsGiven')),
               viralPlatforms: VIRAL_PLATFORMS.filter((pl) => viralCount(a.id, pl) > 0).map((pl) => ({
                 platform: pl,
                 count: viralCount(a.id, pl),
               })),
             })),
-            instagramVideos,
+            instagramVideos: n0(instagramVideos),
             remarks: remarks || undefined,
             shootParticipantIds: [],
           });
@@ -215,7 +232,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
         {/* Attendance */}
         <Card>
           <CardTitle className="mb-3">Attendance</CardTitle>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {ATTENDANCE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -245,26 +262,28 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
 
         {!isAbsent && (
           <>
-            {/* Arrival timing */}
-            <Card>
-              <CardTitle className="mb-3">Arrival Timing</CardTitle>
-              <Select
-                options={ARRIVAL_OPTIONS}
-                value={arrivalTiming}
-                onChange={(e) => setArrivalTiming(e.target.value)}
-              />
-              {arrivalTiming === 'After 9:59 AM' && (
-                <div className="mt-3">
-                  <Input
-                    label="Reason for being late *"
-                    value={lateReason}
-                    onChange={(e) => setLateReason(e.target.value)}
-                    required
-                    placeholder="Explain why you were late"
-                  />
-                </div>
-              )}
-            </Card>
+            {/* Office entry timing — office days only */}
+            {isPresent && (
+              <Card>
+                <CardTitle className="mb-3">Office Entry Timing</CardTitle>
+                <Select
+                  options={ARRIVAL_OPTIONS}
+                  value={arrivalTiming}
+                  onChange={(e) => setArrivalTiming(e.target.value)}
+                />
+                {arrivalTiming === 'After 9:59 AM' && (
+                  <div className="mt-3">
+                    <Input
+                      label="Reason for being late *"
+                      value={lateReason}
+                      onChange={(e) => setLateReason(e.target.value)}
+                      required
+                      placeholder="Explain why you were late"
+                    />
+                  </div>
+                )}
+              </Card>
+            )}
 
             {/* Sales-specific */}
             {isSales && (
@@ -272,8 +291,8 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                 <Card>
                   <CardTitle className="mb-3">Call Activity</CardTitle>
                   <div className="space-y-3">
-                    <Input label="Organic Calls" type="number" min="0"
-                      value={organicCalls} onChange={(e) => setOrganicCalls(+e.target.value)} />
+                    <Input label="Organic Calls" type="number" min="0" placeholder="0"
+                      value={organicCalls} onChange={(e) => setOrganicCalls(parseNum(e.target.value))} />
                     <DurationPicker
                       label="Time on Organic Calls"
                       value={organicCallMinutes}
@@ -282,8 +301,8 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
 
                     <div className="h-px bg-raasta-line" />
 
-                    <Input label="Marketing / Reassigned Calls" type="number" min="0"
-                      value={marketingCalls} onChange={(e) => setMarketingCalls(+e.target.value)} />
+                    <Input label="Marketing / Reassigned Calls" type="number" min="0" placeholder="0"
+                      value={marketingCalls} onChange={(e) => setMarketingCalls(parseNum(e.target.value))} />
                     <DurationPicker
                       label="Time on Reassigned Calls"
                       value={marketingCallMinutes}
@@ -302,25 +321,25 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                         </span>
                       </div>
                     </div>
-                    <Input label="Video Calls" type="number" min="0"
-                      value={videoCalls} onChange={(e) => setVideoCalls(+e.target.value)} />
-                    <Input label="Face-to-Face Meetings" type="number" min="0"
-                      value={faceToFace} onChange={(e) => setFaceToFace(+e.target.value)} />
+                    <Input label="Video Calls" type="number" min="0" placeholder="0"
+                      value={videoCalls} onChange={(e) => setVideoCalls(parseNum(e.target.value))} />
+                    <Input label="Face-to-Face Meetings" type="number" min="0" placeholder="0"
+                      value={faceToFace} onChange={(e) => setFaceToFace(parseNum(e.target.value))} />
                   </div>
                 </Card>
 
                 <Card>
                   <CardTitle className="mb-3">Sales Performance</CardTitle>
                   <div className="space-y-3">
-                    <Input label="Reels Uploaded" type="number" min="0"
-                      value={reelsUploaded} onChange={(e) => setReelsUploaded(+e.target.value)} />
-                    <Input label="Leads Received" type="number" min="0"
-                      value={leadsReceived} onChange={(e) => setLeadsReceived(+e.target.value)} />
-                    <Input label="Sales Revenue (AED)" type="number" min="0" step="0.01"
-                      value={salesRevenue} onChange={(e) => setSalesRevenue(+e.target.value)} />
+                    <Input label="Reels Uploaded" type="number" min="0" placeholder="0"
+                      value={reelsUploaded} onChange={(e) => setReelsUploaded(parseNum(e.target.value))} />
+                    <Input label="Leads Received" type="number" min="0" placeholder="0"
+                      value={leadsReceived} onChange={(e) => setLeadsReceived(parseNum(e.target.value))} />
+                    <Input label="Sales Revenue (AED)" type="number" min="0" step="0.01" placeholder="0"
+                      value={salesRevenue} onChange={(e) => setSalesRevenue(parseNum(e.target.value))} />
                     {isLerBdm && (
-                      <Input label="Team Revenue (AED) — LER/BDM" type="number" min="0" step="0.01"
-                        value={teamRevenue} onChange={(e) => setTeamRevenue(+e.target.value)} />
+                      <Input label="Team Revenue (AED) — LER/BDM" type="number" min="0" step="0.01" placeholder="0"
+                        value={teamRevenue} onChange={(e) => setTeamRevenue(parseNum(e.target.value))} />
                     )}
                   </div>
                 </Card>
@@ -383,9 +402,9 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                 <Card>
                   <CardTitle className="mb-3">Reflections</CardTitle>
                   <div className="space-y-3">
-                    <Input label="Connected Self Circle" type="number" min="0"
+                    <Input label="Connected Self Circle" type="number" min="0" placeholder="0"
                       value={connectedSelfCircle}
-                      onChange={(e) => setConnectedSelfCircle(+e.target.value)} />
+                      onChange={(e) => setConnectedSelfCircle(parseNum(e.target.value))} />
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-raasta-muted uppercase tracking-wide">
                         What did you learn today? (max 150 chars)
@@ -434,9 +453,9 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                           <div key={agent.id} className="bg-raasta-subtle rounded-lg p-3 space-y-2 border border-raasta-border">
                             <p className="text-raasta-ink font-semibold text-sm">{agent.fullName}</p>
                             <p className="text-xs text-raasta-muted">{agent.memberCode} · {agent.position.name}</p>
-                            <Input label="Reels Given" type="number" min="0"
+                            <Input label="Reels Given" type="number" min="0" placeholder="0"
                               value={metric(agent.id, 'reelsGiven')}
-                              onChange={(e) => setMetric(agent.id, 'reelsGiven', +e.target.value)} />
+                              onChange={(e) => setMetric(agent.id, 'reelsGiven', parseNum(e.target.value))} />
                             <div>
                               <div className="flex justify-between items-center mb-1.5">
                                 <label className="text-xs text-raasta-muted font-medium">
@@ -481,12 +500,12 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                                 })}
                               </div>
                             </div>
-                            <Input label="Leads Generated" type="number" min="0"
+                            <Input label="Leads Generated" type="number" min="0" placeholder="0"
                               value={metric(agent.id, 'leadsGenerated')}
-                              onChange={(e) => setMetric(agent.id, 'leadsGenerated', +e.target.value)} />
-                            <Input label="Pics / Carousel / Poster" type="number" min="0"
+                              onChange={(e) => setMetric(agent.id, 'leadsGenerated', parseNum(e.target.value))} />
+                            <Input label="Pics / Carousel / Poster" type="number" min="0" placeholder="0"
                               value={metric(agent.id, 'picsGiven')}
-                              onChange={(e) => setMetric(agent.id, 'picsGiven', +e.target.value)} />
+                              onChange={(e) => setMetric(agent.id, 'picsGiven', parseNum(e.target.value))} />
                           </div>
                         ))}
                         <div className="flex gap-4 text-xs text-raasta-muted pt-1">
@@ -498,9 +517,9 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                       </div>
                     )}
                     <div>
-                      <Input label="Team / Raasta Page Videos Given" type="number" min="0"
+                      <Input label="Team / Raasta Page Videos Given" type="number" min="0" placeholder="0"
                         value={instagramVideos}
-                        onChange={(e) => setInstagramVideos(+e.target.value)} />
+                        onChange={(e) => setInstagramVideos(parseNum(e.target.value))} />
                     </div>
                   </div>
                 </Card>

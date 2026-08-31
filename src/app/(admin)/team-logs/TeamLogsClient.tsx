@@ -34,7 +34,6 @@ const gridColumn = (weekday: number) => (weekday === 0 ? 7 : weekday);
 const STATE_STYLES: Record<DayState, string> = {
   present: 'bg-gold-50 border-gold-300 text-gold-700 hover:border-gold-400',
   remote: 'bg-ok-50 border-ok-500/30 text-ok-600 hover:border-ok-500',
-  hybrid: 'bg-warn-50 border-warn-500/30 text-warn-500 hover:border-warn-500',
   absent: 'bg-bad-50 border-bad-500/30 text-bad-600 hover:border-bad-500',
   missing: 'bg-raasta-surface border-dashed border-raasta-border text-raasta-faint hover:border-raasta-faint',
   off: 'bg-raasta-subtle border-transparent text-raasta-faint/60',
@@ -44,21 +43,18 @@ const STATE_STYLES: Record<DayState, string> = {
 const ATTENDANCE_LABEL: Record<string, string> = {
   present: 'Present',
   remote: 'Remote',
-  hybrid: 'Hybrid',
   absent: 'Absent',
 };
 
 const ATTENDANCE_VARIANT: Record<string, 'green' | 'gold' | 'amber' | 'red'> = {
   present: 'green',
   remote: 'gold',
-  hybrid: 'amber',
   absent: 'red',
 };
 
 const LEGEND: Array<{ state: DayState; label: string }> = [
   { state: 'present', label: 'Present' },
   { state: 'remote', label: 'Remote' },
-  { state: 'hybrid', label: 'Hybrid' },
   { state: 'absent', label: 'Absent' },
   { state: 'missing', label: 'No log' },
   { state: 'off', label: 'Holiday' },

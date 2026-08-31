@@ -37,7 +37,6 @@ export interface MyAchievement {
   logsSubmitted: number;
   daysPresent: number;
   daysRemote: number;
-  daysHybrid: number;
   daysAbsent: number;
   /** How many of the metrics that carry a target have been met. */
   targetsMet: number;
@@ -82,7 +81,6 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           logs: count(),
           present: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'present')`,
           remote: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'remote')`,
-          hybrid: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'hybrid')`,
           absent: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'absent')`,
         })
         .from(dailyLogs)
@@ -220,7 +218,6 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
     logsSubmitted: n(sales?.logs),
     daysPresent: n(sales?.present),
     daysRemote: n(sales?.remote),
-    daysHybrid: n(sales?.hybrid),
     daysAbsent: n(sales?.absent),
     targetsMet: scored.filter((m) => m.actual >= m.target).length,
     targetsSet: scored.length,

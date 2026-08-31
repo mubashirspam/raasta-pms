@@ -249,7 +249,8 @@ export const dailyLogs = pgTable(
       .notNull()
       .references(() => teamMembers.id, { onDelete: 'restrict' }),
     logDate: date('log_date').notNull(),
-    // 'present' | 'remote' | 'hybrid' | 'absent' — only 'absent' is a non-working day.
+    // 'present' | 'remote' | 'absent' — only 'absent' is a non-working day.
+    // Arrival timing is only recorded for 'present' (office entry).
     attendance: varchar('attendance', { length: 20 }).notNull(),
     absenceNote: text('absence_note'),
     arrivalTiming: varchar('arrival_timing', { length: 30 }),

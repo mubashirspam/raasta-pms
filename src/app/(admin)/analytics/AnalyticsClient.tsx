@@ -20,7 +20,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/actions/analytics';
-import type { RangeAnalytics, MemberAnalytics } from '@/lib/actions/analytics';
+import type { RangeAnalytics, MemberAnalytics, MemberLink } from '@/lib/actions/analytics';
 import type {
   TeamMember,
   EmployeeCategory,
@@ -334,12 +334,17 @@ export function AnalyticsClient({
               <div className="space-y-4">
                 {agentsWithViral.map((m) => (
                   <div key={m.memberId}>
-                    <div className="flex items-baseline justify-between gap-2 mb-2">
+                    <div className="flex items-baseline justify-between gap-2">
                       <p className="text-sm font-semibold text-raasta-ink truncate">{m.fullName}</p>
                       <span className="text-xs tabular-nums text-raasta-muted shrink-0">
                         {m.viralTotal} total
                       </span>
                     </div>
+                    <p className="text-xs text-raasta-faint mb-2 truncate">
+                      {m.connections.length > 0
+                        ? `Creator: ${m.connections.map((c) => c.fullName).join(', ')}`
+                        : 'No content creator assigned'}
+                    </p>
                     <PlatformChips data={m.platforms} />
                   </div>
                 ))}
@@ -467,6 +472,53 @@ export function AnalyticsClient({
   );
 }
 
+/**
+ * The other end of the creator↔agent roster: a creator's agents, or the
+ * creator(s) a sales agent is carried by.
+ */
+function ConnectionList({
+  kind,
+  connections,
+}: {
+  kind: MemberAnalytics['kind'];
+  connections: MemberLink[];
+}) {
+  if (kind === 'other') return null;
+
+  const isCreator = kind === 'creator';
+  const heading = isCreator ? 'Connected agents' : 'Content creator';
+  const empty = isCreator
+    ? 'No agents on this creator’s team yet.'
+    : 'No content creator assigned to this agent.';
+
+  return (
+    <div className="mt-4 pt-3 border-t border-raasta-line">
+      <p className="text-xs text-raasta-muted mb-2">
+        {heading}
+        {connections.length > 0 && (
+          <span className="text-raasta-faint"> · {connections.length}</span>
+        )}
+      </p>
+      {connections.length === 0 ? (
+        <p className="text-xs text-raasta-faint">{empty}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {connections.map((c) => (
+            <span
+              key={c.memberId}
+              className="inline-flex items-baseline gap-1.5 rounded-lg border border-raasta-border bg-raasta-subtle px-2 py-1 text-xs"
+              title={`${c.memberCode} · ${c.positionName}`}
+            >
+              <span className="text-raasta-ink font-medium">{c.fullName}</span>
+              <span className="text-raasta-faint">{c.memberCode}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MemberCard({ ms }: { ms: MemberAnalytics }) {
   const scored = ms.metrics.filter((m) => m.target > 0);
   const met = scored.filter((m) => m.actual >= m.target).length;
@@ -513,6 +565,8 @@ function MemberCard({ ms }: { ms: MemberAnalytics }) {
         </div>
       )}
 
+      <ConnectionList kind={ms.kind} connections={ms.connections} />
+
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
         <span>
           Logs <span className="text-raasta-ink tabular-nums font-medium">{ms.logsSubmitted}</span>
@@ -522,9 +576,6 @@ function MemberCard({ ms }: { ms: MemberAnalytics }) {
         </span>
         <span>
           Remote <span className="text-raasta-ink tabular-nums font-medium">{ms.daysRemote}</span>
-        </span>
-        <span>
-          Hybrid <span className="text-raasta-ink tabular-nums font-medium">{ms.daysHybrid}</span>
         </span>
         <span>
           Absent <span className="text-raasta-ink tabular-nums font-medium">{ms.daysAbsent}</span>

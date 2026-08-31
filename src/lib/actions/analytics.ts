@@ -8,6 +8,7 @@ import {
   operationalWeeks,
   creatorDailyMetrics,
   creatorAgentDailyMetrics,
+  creatorTeamAgents,
   viralPlatformCounts,
   notifications,
   auditLog,
@@ -28,6 +29,7 @@ import {
   type StatRow,
   type PlatformCount,
   type MemberKind,
+  type MemberLink,
   type MemberAnalytics,
   type RangeAnalytics,
 } from '@/lib/domain/metrics';
@@ -40,6 +42,7 @@ export type {
   PlatformCount,
   StatRow,
   MemberKind,
+  MemberLink,
   MemberAnalytics,
   RangeAnalytics,
 } from '@/lib/domain/metrics';
@@ -130,6 +133,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     platformRows,
     creatorPlatformRows,
     dailyRevenueSeries,
+    rosterRows,
     targets,
   ] = await Promise.all([
     db.query.teamMembers.findMany({
@@ -154,7 +158,6 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         logs: count(),
         present: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'present')`,
         remote: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'remote')`,
-        hybrid: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'hybrid')`,
         absent: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'absent')`,
       })
       .from(dailyLogs)
@@ -221,8 +224,49 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       .groupBy(dailyLogs.logDate)
       .orderBy(dailyLogs.logDate),
 
+    // The creator↔agent roster, so each card can name the people on the other
+    // side of the link regardless of what was logged in the period.
+    db
+      .select({
+        creatorId: creatorTeamAgents.creatorId,
+        agentId: creatorTeamAgents.agentId,
+        displayOrder: creatorTeamAgents.displayOrder,
+      })
+      .from(creatorTeamAgents)
+      .orderBy(creatorTeamAgents.displayOrder),
+
     collectTargets(range),
   ]);
+
+  // A creator's agents, and an agent's creators — both off the same roster.
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const toLink = (id: string): MemberLink | null => {
+    const m = memberById.get(id);
+    return m
+      ? {
+          memberId: m.id,
+          fullName: m.fullName,
+          memberCode: m.memberCode,
+          positionName: m.position.name,
+        }
+      : null;
+  };
+  const agentsByCreator = new Map<string, MemberLink[]>();
+  const creatorsByAgent = new Map<string, MemberLink[]>();
+  for (const r of rosterRows) {
+    const agent = toLink(r.agentId);
+    if (agent) {
+      const list = agentsByCreator.get(r.creatorId) ?? [];
+      list.push(agent);
+      agentsByCreator.set(r.creatorId, list);
+    }
+    const creator = toLink(r.creatorId);
+    if (creator) {
+      const list = creatorsByAgent.get(r.agentId) ?? [];
+      list.push(creator);
+      creatorsByAgent.set(r.agentId, list);
+    }
+  }
 
   const salesByMember = new Map(salesRows.map((r) => [r.memberId, r]));
   const creatorByMember = new Map(creatorRows.map((r) => [r.memberId, r]));
@@ -300,8 +344,9 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       logsSubmitted: n(s?.logs),
       daysPresent: n(s?.present),
       daysRemote: n(s?.remote),
-      daysHybrid: n(s?.hybrid),
       daysAbsent: n(s?.absent),
+      connections:
+        (kind === 'creator' ? agentsByCreator.get(m.id) : creatorsByAgent.get(m.id)) ?? [],
     };
   });
 
