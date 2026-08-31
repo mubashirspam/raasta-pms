@@ -11,8 +11,6 @@ export const salesTargetSchema = z.object({
   videoCallsTarget: positiveInt,
   faceToFaceTarget: positiveInt,
   revenueTarget: positiveDec,
-  // LER/BDM optional team revenue
-  teamRevenueAmount: positiveDec.optional(),
 });
 
 // One block of numbers per agent on the creator's team.

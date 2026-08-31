@@ -58,7 +58,6 @@ export function TargetsClient({
 }: Props) {
   const router = useRouter();
   const isCreator = member.category.name === 'Content Creator';
-  const isLerBdm = !isCreator && ['LER', 'BDM'].includes(member.position.name);
 
   const [step, setStep] = useState<Step>('week');
   const [selectedWeek, setSelectedWeek] = useState<OperationalWeek | null>(null);
@@ -131,7 +130,6 @@ export function TargetsClient({
             videoCallsTarget: n0(field('videoCallsTarget')),
             faceToFaceTarget: n0(field('faceToFaceTarget')),
             revenueTarget: n0(field('revenueTarget')),
-            teamRevenueAmount: isLerBdm ? n0(field('teamRevenueAmount')) : undefined,
           });
 
       if (!result.success) {
@@ -364,11 +362,6 @@ export function TargetsClient({
               <Input label="Revenue Target (AED)" type="number" min="0" placeholder="0"
                 value={String(field('revenueTarget'))}
                 onChange={(e) => setField('revenueTarget', e.target.value)} />
-              {isLerBdm && (
-                <Input label="Team Revenue Target (AED) — LER/BDM" type="number" min="0" placeholder="0"
-                  value={String(field('teamRevenueAmount'))}
-                  onChange={(e) => setField('teamRevenueAmount', e.target.value)} />
-              )}
             </div>
           )}
         </Card>
@@ -421,9 +414,6 @@ export function TargetsClient({
                 <Row label="Video Calls" value={String(n0(field('videoCallsTarget')))} />
                 <Row label="Face-to-Face" value={String(n0(field('faceToFaceTarget')))} />
                 <Row label="Revenue Target" value={fmtAED(n0(field('revenueTarget')))} />
-                {isLerBdm && (
-                  <Row label="Team Revenue" value={fmtAED(n0(field('teamRevenueAmount')))} />
-                )}
               </>
             )}
           </div>

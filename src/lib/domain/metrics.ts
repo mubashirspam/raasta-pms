@@ -57,6 +57,24 @@ export interface MemberAnalytics {
    * the sales agents they carry; for a sales agent, the creators carrying them.
    */
   connections: MemberLink[];
+  /** Set only for an LER/BDM; see TeamRevenue. */
+  teamRevenue: TeamRevenue | null;
+}
+
+/**
+ * An LER/BDM's team revenue, summed from the agents holding that leader's
+ * position ("Ramesh-LER"). Nobody types this in — it is derived, so it cannot
+ * drift from what the team actually logged. Null for everyone but a leader.
+ */
+export interface TeamRevenue {
+  total: number;
+  /** Who contributed, so the total can be read back to its parts. */
+  members: Array<{
+    memberId: string;
+    fullName: string;
+    memberCode: string;
+    revenue: number;
+  }>;
 }
 
 /** A person on the other end of a creator/agent link. */

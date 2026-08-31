@@ -43,9 +43,9 @@ export const salesLogSchema = z.object({
   uploadedPlatforms: positiveInt,
   selfieVideos: positiveInt,
   leadsReceived: positiveInt,
+  // A leader's team revenue is not entered here: it is summed in analytics
+  // from the agents holding that leader's position.
   salesRevenue: positiveDec,
-  // Only LER/BDM submit this; the form hides it for plain Agents.
-  teamRevenue: positiveDec.optional(),
   connectedSelfCircle: positiveInt,
   learnedToday: z.string().max(150).optional(),
   issuesToday: z.string().max(250).optional(),

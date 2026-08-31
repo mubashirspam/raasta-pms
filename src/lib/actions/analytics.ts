@@ -17,6 +17,7 @@ import {
 import { eq, and, gte, lte, sum, count, sql } from 'drizzle-orm';
 import { isAdminAuthenticated } from '@/lib/auth-server';
 import { weekOverlapFactor, type DateRange } from '@/lib/domain/ranges';
+import { isLeaderPosition, leaderPositionName } from '@/lib/leader-positions';
 import {
   num as n,
   metric,
@@ -30,6 +31,7 @@ import {
   type PlatformCount,
   type MemberKind,
   type MemberLink,
+  type TeamRevenue,
   type MemberAnalytics,
   type RangeAnalytics,
 } from '@/lib/domain/metrics';
@@ -43,6 +45,7 @@ export type {
   StatRow,
   MemberKind,
   MemberLink,
+  TeamRevenue,
   MemberAnalytics,
   RangeAnalytics,
 } from '@/lib/domain/metrics';
@@ -272,6 +275,15 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     }
   }
 
+  // Agents are grouped by the position they hold, so a leader's team is
+  // everyone sitting on that leader's own position — "Ramesh-LER".
+  const membersByPosition = new Map<string, typeof members>();
+  for (const m of members) {
+    const list = membersByPosition.get(m.position.name) ?? [];
+    list.push(m);
+    membersByPosition.set(m.position.name, list);
+  }
+
   const salesByMember = new Map(salesRows.map((r) => [r.memberId, r]));
   const creatorByMember = new Map(creatorRows.map((r) => [r.memberId, r]));
   const creditedByAgent = new Map(creditedRows.map((r) => [r.agentId, r]));
@@ -303,6 +315,26 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       .filter(([p, c]) => c > 0 && !VIRAL_PLATFORMS.includes(p as never))
       .map(([platform, count]) => ({ platform, count }));
     return [...known, ...extra];
+  };
+
+  /** A leader's revenue roll-up; null for anyone who does not lead a team. */
+  const buildTeamRevenue = (leader: (typeof members)[number]): TeamRevenue | null => {
+    if (!isLeaderPosition(leader.position.name)) return null;
+
+    const own = leaderPositionName(leader.fullName, leader.position.name);
+    const team = membersByPosition.get(own) ?? [];
+
+    // The leader's own sales stay on their Revenue row; this is the team's.
+    const rows = team
+      .filter((t) => t.id !== leader.id)
+      .map((t) => ({
+        memberId: t.id,
+        fullName: t.fullName,
+        memberCode: t.memberCode,
+        revenue: n(salesByMember.get(t.id)?.revenue),
+      }));
+
+    return { total: rows.reduce((a, r) => a + r.revenue, 0), members: rows };
   };
 
   const memberSummaries: MemberAnalytics[] = members.map((m) => {
@@ -351,6 +383,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       daysAbsent: n(s?.absent),
       connections:
         (kind === 'creator' ? agentsByCreator.get(m.id) : creatorsByAgent.get(m.id)) ?? [],
+      teamRevenue: buildTeamRevenue(m),
     };
   });
 

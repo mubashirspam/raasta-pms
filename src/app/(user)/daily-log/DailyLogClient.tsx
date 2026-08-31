@@ -66,7 +66,6 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const [selfieVideos, setSelfieVideos] = useState<NumField>('');
   const [leadsReceived, setLeadsReceived] = useState<NumField>('');
   const [salesRevenue, setSalesRevenue] = useState<NumField>('');
-  const [teamRevenue, setTeamRevenue] = useState<NumField>('');
   const [connectedSelfCircle, setConnectedSelfCircle] = useState<NumField>('');
   const [learnedToday, setLearnedToday] = useState('');
   const [issuesToday, setIssuesToday] = useState('');
@@ -95,10 +94,8 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const isAbsent = attendance === 'absent';
   // Only an office day has an entry time to report; remote days skip the box.
   const isPresent = attendance === 'present';
-  // LER/BDM report their team's revenue on top of their own.
   const isCreator = member.category.name === 'Content Creator';
   const isSales = !isCreator;
-  const isLerBdm = isSales && ['LER', 'BDM'].includes(member.position.name);
 
   // The selected creator's roster and the day's totals summed across it.
 
@@ -189,7 +186,6 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
             selfieVideos: n0(selfieVideos),
             leadsReceived: n0(leadsReceived),
             salesRevenue: n0(salesRevenue),
-            teamRevenue: isLerBdm ? n0(teamRevenue) : undefined,
             connectedSelfCircle: n0(connectedSelfCircle),
             learnedToday: learnedToday || undefined,
             issuesToday: issuesToday || undefined,
@@ -356,10 +352,6 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                       value={leadsReceived} onChange={(e) => setLeadsReceived(parseNum(e.target.value))} />
                     <Input label="Sales Revenue (AED)" type="number" min="0" step="0.01" placeholder="0"
                       value={salesRevenue} onChange={(e) => setSalesRevenue(parseNum(e.target.value))} />
-                    {isLerBdm && (
-                      <Input label="Team Revenue (AED) — LER/BDM" type="number" min="0" step="0.01" placeholder="0"
-                        value={teamRevenue} onChange={(e) => setTeamRevenue(parseNum(e.target.value))} />
-                    )}
                   </div>
                 </Card>
 

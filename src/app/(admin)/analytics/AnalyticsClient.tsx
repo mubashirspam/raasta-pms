@@ -20,7 +20,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/actions/analytics';
-import type { RangeAnalytics, MemberAnalytics, MemberLink } from '@/lib/actions/analytics';
+import type {
+  RangeAnalytics,
+  MemberAnalytics,
+  MemberLink,
+  TeamRevenue,
+} from '@/lib/actions/analytics';
 import type {
   TeamMember,
   EmployeeCategory,
@@ -85,6 +90,8 @@ export function AnalyticsClient({
         (m) =>
           m.logsSubmitted > 0 ||
           m.viralTotal > 0 ||
+          // A leader may log nothing themselves and still carry a team.
+          (m.teamRevenue?.total ?? 0) > 0 ||
           m.metrics.some((x) => x.actual > 0 || x.target > 0),
       ),
     [a],
@@ -473,6 +480,43 @@ export function AnalyticsClient({
 }
 
 /**
+ * An LER/BDM's team revenue. Summed from the agents holding this leader's own
+ * position rather than typed into the log, so the parts are shown alongside the
+ * total — a wrong total means someone is on the wrong position.
+ */
+function TeamRevenuePanel({ teamRevenue }: { teamRevenue: TeamRevenue | null }) {
+  if (!teamRevenue) return null;
+
+  return (
+    <div className="mt-4 pt-3 border-t border-raasta-line">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs text-raasta-muted">Team Revenue (AED) — LER/BDM</p>
+        <p className="text-sm font-semibold text-gold-600 tabular-nums shrink-0">
+          {fmtAED(teamRevenue.total)}
+        </p>
+      </div>
+
+      {teamRevenue.members.length === 0 ? (
+        <p className="text-xs text-raasta-faint mt-1">
+          No agents are on this leader’s position yet.
+        </p>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {teamRevenue.members.map((t) => (
+            <div key={t.memberId} className="flex items-baseline justify-between gap-2 text-xs">
+              <span className="text-raasta-muted truncate">
+                {t.fullName} <span className="text-raasta-faint">{t.memberCode}</span>
+              </span>
+              <span className="text-raasta-ink tabular-nums shrink-0">{fmtAED(t.revenue)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * The other end of the creator↔agent roster: a creator's agents, or the
  * creator(s) a sales agent is carried by.
  */
@@ -564,6 +608,8 @@ function MemberCard({ ms }: { ms: MemberAnalytics }) {
           <PlatformChips data={ms.platforms} />
         </div>
       )}
+
+      <TeamRevenuePanel teamRevenue={ms.teamRevenue} />
 
       <ConnectionList kind={ms.kind} connections={ms.connections} />
 

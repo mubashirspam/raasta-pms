@@ -72,7 +72,6 @@ export async function submitSalesLog(
         selfieVideos: data.selfieVideos,
         leadsReceived: data.leadsReceived,
         salesRevenue: String(data.salesRevenue),
-        teamRevenue: data.teamRevenue === undefined ? null : String(data.teamRevenue),
         connectedSelfCircle: data.connectedSelfCircle,
         learnedToday: data.learnedToday,
         issuesToday: data.issuesToday,
