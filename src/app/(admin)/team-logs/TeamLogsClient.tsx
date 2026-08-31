@@ -34,7 +34,6 @@ const gridColumn = (weekday: number) => (weekday === 0 ? 7 : weekday);
 const STATE_STYLES: Record<DayState, string> = {
   present: 'bg-gold-50 border-gold-300 text-gold-700 hover:border-gold-400',
   remote: 'bg-ok-50 border-ok-500/30 text-ok-600 hover:border-ok-500',
-  hybrid: 'bg-warn-50 border-warn-500/30 text-warn-500 hover:border-warn-500',
   absent: 'bg-bad-50 border-bad-500/30 text-bad-600 hover:border-bad-500',
   missing: 'bg-raasta-surface border-dashed border-raasta-border text-raasta-faint hover:border-raasta-faint',
   off: 'bg-raasta-subtle border-transparent text-raasta-faint/60',
@@ -44,21 +43,18 @@ const STATE_STYLES: Record<DayState, string> = {
 const ATTENDANCE_LABEL: Record<string, string> = {
   present: 'Present',
   remote: 'Remote',
-  hybrid: 'Hybrid',
   absent: 'Absent',
 };
 
 const ATTENDANCE_VARIANT: Record<string, 'green' | 'gold' | 'amber' | 'red'> = {
   present: 'green',
   remote: 'gold',
-  hybrid: 'amber',
   absent: 'red',
 };
 
 const LEGEND: Array<{ state: DayState; label: string }> = [
   { state: 'present', label: 'Present' },
   { state: 'remote', label: 'Remote' },
-  { state: 'hybrid', label: 'Hybrid' },
   { state: 'absent', label: 'Absent' },
   { state: 'missing', label: 'No log' },
   { state: 'off', label: 'Holiday' },
@@ -367,6 +363,8 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                 <Stat label="Video calls" value={detail.videoCalls} />
                 <Stat label="Face-to-face" value={detail.faceToFace} />
                 <Stat label="Reels uploaded" value={detail.reelsUploaded} />
+                <Stat label="Uploaded platforms" value={detail.uploadedPlatforms} />
+                <Stat label="Selfie videos" value={detail.selfieVideos} />
                 <Stat label="Leads received" value={detail.leadsReceived} />
                 <Stat label="Connected self circle" value={detail.connectedSelfCircle} />
                 <Stat label="Sales revenue" value={fmtAED(detail.salesRevenue)} />
@@ -384,6 +382,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                 <Stat label="Viral videos" value={cm.viralVideos} />
                 <Stat label="Leads generated" value={cm.leadsGenerated} />
                 <Stat label="Pics / carousel / poster" value={cm.picsGiven} />
+                <Stat label="Long form videos" value={cm.longFormVideos} />
                 <Stat label="Team / Raasta page videos" value={cm.instagramVideos} />
               </div>
               {cm.remarks && (
@@ -406,6 +405,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                       <th className="font-medium py-1.5 text-right">Viral</th>
                       <th className="font-medium py-1.5 text-right">Leads</th>
                       <th className="font-medium py-1.5 text-right">Pics</th>
+                      <th className="font-medium py-1.5 text-right">Long form</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -429,6 +429,9 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                         </td>
                         <td className="py-2 text-right tabular-nums text-raasta-ink">
                           {am.picsGiven}
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-raasta-ink">
+                          {am.longFormVideos}
                         </td>
                       </tr>
                     ))}

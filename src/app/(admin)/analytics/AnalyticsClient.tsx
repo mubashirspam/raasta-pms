@@ -12,6 +12,7 @@ import { RevenueChart } from '@/components/charts/RevenueChart';
 import { PlatformBars, PlatformChips } from '@/components/charts/PlatformBars';
 import { RangePicker } from '@/components/analytics/RangePicker';
 import { cn, fmtAED } from '@/lib/domain/helpers';
+import { ChevronDown } from 'lucide-react';
 import {
   approveCorrectionRequest,
   rejectCorrectionRequest,
@@ -20,7 +21,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/actions/analytics';
-import type { RangeAnalytics, MemberAnalytics } from '@/lib/actions/analytics';
+import type {
+  RangeAnalytics,
+  MemberAnalytics,
+  MemberLink,
+  TeamRevenue,
+} from '@/lib/actions/analytics';
 import type {
   TeamMember,
   EmployeeCategory,
@@ -74,6 +80,17 @@ export function AnalyticsClient({
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [rejectingId, setRejectingId] = useState<number | null>(null);
+  // A full member card is tall, so ten of them is a long scroll. Cards start
+  // collapsed and open independently, so two people can be compared side by
+  // side rather than one at a time.
+  const [expandedMembers, setExpandedMembers] = useState<Set<string>>(new Set());
+
+  const toggleMember = (memberId: string) =>
+    setExpandedMembers((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(memberId)) next.add(memberId);
+      return next;
+    });
 
   const unreadCount = notifications.length;
   const a = analytics;
@@ -85,6 +102,8 @@ export function AnalyticsClient({
         (m) =>
           m.logsSubmitted > 0 ||
           m.viralTotal > 0 ||
+          // A leader may log nothing themselves and still carry a team.
+          (m.teamRevenue?.total ?? 0) > 0 ||
           m.metrics.some((x) => x.actual > 0 || x.target > 0),
       ),
     [a],
@@ -97,6 +116,10 @@ export function AnalyticsClient({
         : activeMembers.filter((m) => m.kind === memberFilter),
     [activeMembers, memberFilter],
   );
+
+  const allExpanded =
+    filteredMembers.length > 0 &&
+    filteredMembers.every((m) => expandedMembers.has(m.memberId));
 
   const creatorsWithViral = activeMembers.filter(
     (m) => m.kind === 'creator' && m.viralTotal > 0,
@@ -265,7 +288,7 @@ export function AnalyticsClient({
       {/* ── Members ────────────────────────────────────────────────────────── */}
       {tab === 'members' && (
         <div className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(['all', 'sales', 'creator'] as MemberFilter[]).map((f) => (
               <button
                 key={f}
@@ -280,6 +303,19 @@ export function AnalyticsClient({
                 {f === 'all' ? 'Everyone' : f === 'sales' ? 'Sales Agents' : 'Content Creators'}
               </button>
             ))}
+
+            {filteredMembers.length > 0 && (
+              <button
+                onClick={() =>
+                  setExpandedMembers(
+                    allExpanded ? new Set() : new Set(filteredMembers.map((m) => m.memberId)),
+                  )
+                }
+                className="ml-auto text-xs font-medium text-raasta-muted hover:text-raasta-ink transition-colors"
+              >
+                {allExpanded ? 'Collapse all' : 'Expand all'}
+              </button>
+            )}
           </div>
 
           {filteredMembers.length === 0 ? (
@@ -287,7 +323,14 @@ export function AnalyticsClient({
               <p className="text-raasta-muted text-sm">No member data for this period.</p>
             </Card>
           ) : (
-            filteredMembers.map((ms) => <MemberCard key={ms.memberId} ms={ms} />)
+            filteredMembers.map((ms) => (
+              <MemberCard
+                key={ms.memberId}
+                ms={ms}
+                expanded={expandedMembers.has(ms.memberId)}
+                onToggle={() => toggleMember(ms.memberId)}
+              />
+            ))
           )}
         </div>
       )}
@@ -334,12 +377,17 @@ export function AnalyticsClient({
               <div className="space-y-4">
                 {agentsWithViral.map((m) => (
                   <div key={m.memberId}>
-                    <div className="flex items-baseline justify-between gap-2 mb-2">
+                    <div className="flex items-baseline justify-between gap-2">
                       <p className="text-sm font-semibold text-raasta-ink truncate">{m.fullName}</p>
                       <span className="text-xs tabular-nums text-raasta-muted shrink-0">
                         {m.viralTotal} total
                       </span>
                     </div>
+                    <p className="text-xs text-raasta-faint mb-2 truncate">
+                      {m.connections.length > 0
+                        ? `Creator: ${m.connections.map((c) => c.fullName).join(', ')}`
+                        : 'No content creator assigned'}
+                    </p>
                     <PlatformChips data={m.platforms} />
                   </div>
                 ))}
@@ -467,69 +515,197 @@ export function AnalyticsClient({
   );
 }
 
-function MemberCard({ ms }: { ms: MemberAnalytics }) {
+/**
+ * An LER/BDM's team revenue. Summed from the agents holding this leader's own
+ * position rather than typed into the log, so the parts are shown alongside the
+ * total — a wrong total means someone is on the wrong position.
+ */
+function TeamRevenuePanel({ teamRevenue }: { teamRevenue: TeamRevenue | null }) {
+  if (!teamRevenue) return null;
+
+  return (
+    <div className="mt-4 pt-3 border-t border-raasta-line">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs text-raasta-muted">Team Revenue (AED) — LER/BDM</p>
+        <p className="text-sm font-semibold text-gold-600 tabular-nums shrink-0">
+          {fmtAED(teamRevenue.total)}
+        </p>
+      </div>
+
+      {teamRevenue.members.length === 0 ? (
+        <p className="text-xs text-raasta-faint mt-1">
+          No agents are on this leader’s position yet.
+        </p>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {teamRevenue.members.map((t) => (
+            <div key={t.memberId} className="flex items-baseline justify-between gap-2 text-xs">
+              <span className="text-raasta-muted truncate">
+                {t.fullName} <span className="text-raasta-faint">{t.memberCode}</span>
+              </span>
+              <span className="text-raasta-ink tabular-nums shrink-0">{fmtAED(t.revenue)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The other end of the creator↔agent roster: a creator's agents, or the
+ * creator(s) a sales agent is carried by.
+ */
+function ConnectionList({
+  kind,
+  connections,
+}: {
+  kind: MemberAnalytics['kind'];
+  connections: MemberLink[];
+}) {
+  if (kind === 'other') return null;
+
+  const isCreator = kind === 'creator';
+  const heading = isCreator ? 'Connected agents' : 'Content creator';
+  const empty = isCreator
+    ? 'No agents on this creator’s team yet.'
+    : 'No content creator assigned to this agent.';
+
+  return (
+    <div className="mt-4 pt-3 border-t border-raasta-line">
+      <p className="text-xs text-raasta-muted mb-2">
+        {heading}
+        {connections.length > 0 && (
+          <span className="text-raasta-faint"> · {connections.length}</span>
+        )}
+      </p>
+      {connections.length === 0 ? (
+        <p className="text-xs text-raasta-faint">{empty}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {connections.map((c) => (
+            <span
+              key={c.memberId}
+              className="inline-flex items-baseline gap-1.5 rounded-lg border border-raasta-border bg-raasta-subtle px-2 py-1 text-xs"
+              title={`${c.memberCode} · ${c.positionName}`}
+            >
+              <span className="text-raasta-ink font-medium">{c.fullName}</span>
+              <span className="text-raasta-faint">{c.memberCode}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MemberCard({
+  ms,
+  expanded,
+  onToggle,
+}: {
+  ms: MemberAnalytics;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const scored = ms.metrics.filter((m) => m.target > 0);
   const met = scored.filter((m) => m.actual >= m.target).length;
 
+  // One number worth seeing without opening the card: what this person is
+  // actually measured on.
+  const headline = ms.kind === 'creator'
+    ? ms.metrics.find((m) => m.key === 'reels')
+    : ms.metrics.find((m) => m.key === 'revenue');
+
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-2 mb-4">
+    <Card className={expanded ? undefined : 'py-3'}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="w-full flex items-center justify-between gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 rounded-lg"
+      >
         <div className="min-w-0">
           <p className="text-raasta-ink font-semibold text-sm truncate">{ms.fullName}</p>
           <p className="text-xs text-raasta-muted truncate">
             {ms.memberCode} · {ms.positionName}
+            {headline && (
+              <>
+                {' · '}
+                <span className="text-raasta-ink tabular-nums">
+                  {headline.format === 'currency'
+                    ? fmtAED(headline.actual)
+                    : `${headline.actual.toLocaleString('en-AE')} ${headline.label.toLowerCase()}`}
+                </span>
+              </>
+            )}
           </p>
         </div>
-        {scored.length > 0 && (
-          <Badge variant={met === scored.length ? 'green' : met > 0 ? 'amber' : 'red'}>
-            {met}/{scored.length} targets met
-          </Badge>
-        )}
-      </div>
 
-      <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-        {ms.metrics.map((m) => (
-          <MetricBar
-            key={m.key}
-            label={m.label}
-            actual={m.actual}
-            target={m.target}
-            format={m.format}
+        <div className="flex items-center gap-2 shrink-0">
+          {scored.length > 0 && (
+            <Badge variant={met === scored.length ? 'green' : met > 0 ? 'amber' : 'red'}>
+              {met}/{scored.length} targets met
+            </Badge>
+          )}
+          <ChevronDown
+            className={cn(
+              'w-4 h-4 text-raasta-muted transition-transform',
+              expanded && 'rotate-180',
+            )}
+            aria-hidden="true"
           />
-        ))}
-      </div>
-
-      {ms.cumulative.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-raasta-line">
-          <p className="text-xs text-raasta-muted mb-2">Cumulative — no target</p>
-          <StatTiles stats={ms.cumulative} compact />
         </div>
-      )}
+      </button>
 
-      {ms.platforms.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-raasta-line">
-          <p className="text-xs text-raasta-muted mb-2">Viral videos by platform</p>
-          <PlatformChips data={ms.platforms} />
+      {expanded && (
+        <>
+        <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 mt-4">
+          {ms.metrics.map((m) => (
+            <MetricBar
+              key={m.key}
+              label={m.label}
+              actual={m.actual}
+              target={m.target}
+              format={m.format}
+            />
+          ))}
         </div>
-      )}
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
-        <span>
-          Logs <span className="text-raasta-ink tabular-nums font-medium">{ms.logsSubmitted}</span>
-        </span>
-        <span>
-          Present <span className="text-raasta-ink tabular-nums font-medium">{ms.daysPresent}</span>
-        </span>
-        <span>
-          Remote <span className="text-raasta-ink tabular-nums font-medium">{ms.daysRemote}</span>
-        </span>
-        <span>
-          Hybrid <span className="text-raasta-ink tabular-nums font-medium">{ms.daysHybrid}</span>
-        </span>
-        <span>
-          Absent <span className="text-raasta-ink tabular-nums font-medium">{ms.daysAbsent}</span>
-        </span>
-      </div>
+        {ms.cumulative.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-raasta-line">
+            <p className="text-xs text-raasta-muted mb-2">Cumulative — no target</p>
+            <StatTiles stats={ms.cumulative} compact />
+          </div>
+        )}
+
+        {ms.platforms.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-raasta-line">
+            <p className="text-xs text-raasta-muted mb-2">Viral videos by platform</p>
+            <PlatformChips data={ms.platforms} />
+          </div>
+        )}
+
+        <TeamRevenuePanel teamRevenue={ms.teamRevenue} />
+
+        <ConnectionList kind={ms.kind} connections={ms.connections} />
+
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4 pt-3 border-t border-raasta-line text-xs text-raasta-muted">
+          <span>
+            Logs <span className="text-raasta-ink tabular-nums font-medium">{ms.logsSubmitted}</span>
+          </span>
+          <span>
+            Present <span className="text-raasta-ink tabular-nums font-medium">{ms.daysPresent}</span>
+          </span>
+          <span>
+            Remote <span className="text-raasta-ink tabular-nums font-medium">{ms.daysRemote}</span>
+          </span>
+          <span>
+            Absent <span className="text-raasta-ink tabular-nums font-medium">{ms.daysAbsent}</span>
+          </span>
+        </div>
+        </>
+      )}
     </Card>
   );
 }

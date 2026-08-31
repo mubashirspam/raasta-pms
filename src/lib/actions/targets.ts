@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/db';
 import {
   weeklyTargets,
-  teamRevenueTargets,
   teamMembers,
   positions,
   notifications,
@@ -62,24 +61,11 @@ export async function submitSalesTarget(
       videoCallsTarget: data.videoCallsTarget,
       faceToFaceTarget: data.faceToFaceTarget,
       revenueTarget: String(data.revenueTarget),
+      reelsUploadedTarget: data.reelsUploadedTarget,
+      selfieVideosTarget: data.selfieVideosTarget,
       referenceNumber,
     })
     .returning();
-
-  // Handle LER/BDM team revenue target
-  if (data.teamRevenueAmount && data.teamRevenueAmount > 0) {
-    const { month, year } = await getMonthYearForWeek(data.weekId);
-    await db
-      .insert(teamRevenueTargets)
-      .values({
-        memberId: data.memberId,
-        month,
-        year,
-        amount: String(data.teamRevenueAmount),
-        proposedBy: data.memberId,
-      })
-      .onConflictDoNothing();
-  }
 
   // Notify admin if position flagged
   if (positionFlagged) {
@@ -158,6 +144,7 @@ export async function submitCreatorTarget(
         viralVideosTarget: t.viralVideosTarget,
         leadsTarget: t.leadsTarget,
         picsTarget: t.picsTarget,
+        longFormTarget: t.longFormTarget,
         referenceNumber,
       })),
     ]);
@@ -265,12 +252,3 @@ export async function getTargetsForMember(memberId: string) {
   });
 }
 
-// Helper: get month/year for a week — used for team revenue targets
-async function getMonthYearForWeek(
-  weekId: number,
-): Promise<{ month: number; year: number }> {
-  const week = await db.query.operationalWeeks.findFirst({
-    where: (t) => eq(t.id, weekId),
-  });
-  return { month: week?.month ?? new Date().getMonth() + 1, year: week?.year ?? new Date().getFullYear() };
-}

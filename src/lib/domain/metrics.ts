@@ -51,8 +51,38 @@ export interface MemberAnalytics {
   logsSubmitted: number;
   daysPresent: number;
   daysRemote: number;
-  daysHybrid: number;
   daysAbsent: number;
+  /**
+   * The other side of the creator↔agent roster: for a content creator these are
+   * the sales agents they carry; for a sales agent, the creators carrying them.
+   */
+  connections: MemberLink[];
+  /** Set only for an LER/BDM; see TeamRevenue. */
+  teamRevenue: TeamRevenue | null;
+}
+
+/**
+ * An LER/BDM's team revenue, summed from the agents holding that leader's
+ * position ("Ramesh-LER"). Nobody types this in — it is derived, so it cannot
+ * drift from what the team actually logged. Null for everyone but a leader.
+ */
+export interface TeamRevenue {
+  total: number;
+  /** Who contributed, so the total can be read back to its parts. */
+  members: Array<{
+    memberId: string;
+    fullName: string;
+    memberCode: string;
+    revenue: number;
+  }>;
+}
+
+/** A person on the other end of a creator/agent link. */
+export interface MemberLink {
+  memberId: string;
+  fullName: string;
+  memberCode: string;
+  positionName: string;
 }
 
 export interface RangeAnalytics {
@@ -95,10 +125,13 @@ export interface TargetTotals {
   videoCalls: number;
   faceToFace: number;
   revenue: number;
+  reelsUploaded: number;
+  selfieVideos: number;
   reels: number;
   viral: number;
   leads: number;
   pics: number;
+  longForm: number;
   teamVideos: number;
 }
 
@@ -107,10 +140,13 @@ export const emptyTargets = (): TargetTotals => ({
   videoCalls: 0,
   faceToFace: 0,
   revenue: 0,
+  reelsUploaded: 0,
+  selfieVideos: 0,
   reels: 0,
   viral: 0,
   leads: 0,
   pics: 0,
+  longForm: 0,
   teamVideos: 0,
 });
 
@@ -122,10 +158,13 @@ export function accumulateTarget(
     videoCallsTarget?: unknown;
     faceToFaceTarget?: unknown;
     revenueTarget?: unknown;
+    reelsUploadedTarget?: unknown;
+    selfieVideosTarget?: unknown;
     reelsTarget?: unknown;
     viralVideosTarget?: unknown;
     leadsTarget?: unknown;
     picsTarget?: unknown;
+    longFormTarget?: unknown;
     teamVideosTarget?: unknown;
   },
   factor: number,
@@ -134,10 +173,13 @@ export function accumulateTarget(
   into.videoCalls += num(row.videoCallsTarget) * factor;
   into.faceToFace += num(row.faceToFaceTarget) * factor;
   into.revenue += num(row.revenueTarget) * factor;
+  into.reelsUploaded += num(row.reelsUploadedTarget) * factor;
+  into.selfieVideos += num(row.selfieVideosTarget) * factor;
   into.reels += num(row.reelsTarget) * factor;
   into.viral += num(row.viralVideosTarget) * factor;
   into.leads += num(row.leadsTarget) * factor;
   into.pics += num(row.picsTarget) * factor;
+  into.longForm += num(row.longFormTarget) * factor;
   into.teamVideos += num(row.teamVideosTarget) * factor;
 }
 
@@ -149,6 +191,8 @@ export interface SalesAggregate {
   videoCalls?: unknown;
   faceToFace?: unknown;
   revenue?: unknown;
+  reelsUploaded?: unknown;
+  selfieVideos?: unknown;
   leadsReceived?: unknown;
   organicCallMinutes?: unknown;
   marketingCallMinutes?: unknown;
@@ -159,6 +203,7 @@ export interface CreatorAggregate {
   viral?: unknown;
   leads?: unknown;
   pics?: unknown;
+  longForm?: unknown;
   teamVideos?: unknown;
 }
 
@@ -167,6 +212,7 @@ export interface CreditedAggregate {
   viral?: unknown;
   leads?: unknown;
   pics?: unknown;
+  longForm?: unknown;
 }
 
 export interface MemberRowInput {
@@ -199,6 +245,7 @@ export function buildMemberRows(input: MemberRowInput): {
         metric('viral', 'Viral Videos (100K+ Views)', viralTotal, ownTargets.viral),
         metric('leads', 'Leads Generated', num(creator?.leads), ownTargets.leads),
         metric('pics', 'Pics / Carousel / Poster', num(creator?.pics), ownTargets.pics),
+        metric('longForm', 'Long Form Videos', num(creator?.longForm), ownTargets.longForm),
         metric(
           'teamVideos',
           'Team / Raasta Page Videos',
@@ -219,11 +266,15 @@ export function buildMemberRows(input: MemberRowInput): {
       metric('videoCalls', 'Video Calls', num(sales?.videoCalls), ownTargets.videoCalls),
       metric('faceToFace', 'Face-to-Face', num(sales?.faceToFace), ownTargets.faceToFace),
       metric('revenue', 'Revenue', num(sales?.revenue), ownTargets.revenue, 'currency'),
+      // The agent's own uploads, straight off their daily log.
+      metric('reelsUploaded', 'Reels Uploaded', num(sales?.reelsUploaded), ownTargets.reelsUploaded),
+      metric('selfieVideos', 'Selfie Videos', num(sales?.selfieVideos), ownTargets.selfieVideos),
       // Delivered by the content creators who carry this agent on their team.
       metric('reelsReceived', 'Reels From Creators', num(credited?.reels), agentTargets.reels),
       metric('viralReceived', 'Viral Videos (100K+ Views)', viralTotal, agentTargets.viral),
       metric('leadsReceived', 'Leads From Creators', num(credited?.leads), agentTargets.leads),
       metric('pics', 'Pics / Carousel / Poster', num(credited?.pics), agentTargets.pics),
+      metric('longForm', 'Long Form Videos', num(credited?.longForm), agentTargets.longForm),
     ],
     cumulative: [
       stat('organicCallTime', 'Organic Call Time', organicMins, 'duration'),

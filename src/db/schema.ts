@@ -188,11 +188,17 @@ export const weeklyTargets = pgTable(
     videoCallsTarget: integer('video_calls_target'),
     faceToFaceTarget: integer('face_to_face_target'),
     revenueTarget: decimal('revenue_target', { precision: 14, scale: 2 }),
+    // The agent's own uploads, matched against reels_uploaded / selfie_videos
+    // on the daily log. Distinct from reelsTarget, which is what a creator
+    // commits to deliver *for* an agent.
+    reelsUploadedTarget: integer('reels_uploaded_target'),
+    selfieVideosTarget: integer('selfie_videos_target'),
     // Creator fields
     reelsTarget: integer('reels_target'),
     viralVideosTarget: integer('viral_videos_target'),
     leadsTarget: integer('leads_target'),
     picsTarget: integer('pics_target'),
+    longFormTarget: integer('long_form_target'),
     teamVideosTarget: integer('team_videos_target'),
     // Position / status
     positionId: integer('position_id').references(() => positions.id),
@@ -249,7 +255,8 @@ export const dailyLogs = pgTable(
       .notNull()
       .references(() => teamMembers.id, { onDelete: 'restrict' }),
     logDate: date('log_date').notNull(),
-    // 'present' | 'remote' | 'hybrid' | 'absent' — only 'absent' is a non-working day.
+    // 'present' | 'remote' | 'absent' — only 'absent' is a non-working day.
+    // Arrival timing is only recorded for 'present' (office entry).
     attendance: varchar('attendance', { length: 20 }).notNull(),
     absenceNote: text('absence_note'),
     arrivalTiming: varchar('arrival_timing', { length: 30 }),
@@ -266,6 +273,10 @@ export const dailyLogs = pgTable(
     videoCalls: integer('video_calls').notNull().default(0),
     faceToFace: integer('face_to_face').notNull().default(0),
     reelsUploaded: integer('reels_uploaded').notNull().default(0),
+    // How many platforms those reels went out on, and how many selfie videos
+    // were shot that day. Counted on the log; no target is set against either.
+    uploadedPlatforms: integer('uploaded_platforms').notNull().default(0),
+    selfieVideos: integer('selfie_videos').notNull().default(0),
     leadsReceived: integer('leads_received').notNull().default(0),
     salesRevenue: decimal('sales_revenue', { precision: 14, scale: 2 }).notNull().default('0'),
     // LER/BDM also report revenue brought in by their team.
@@ -314,6 +325,7 @@ export const creatorDailyMetrics = pgTable(
     viralVideos: integer('viral_videos').notNull().default(0),
     leadsGenerated: integer('leads_generated').notNull().default(0),
     picsGiven: integer('pics_given').notNull().default(0),
+    longFormVideos: integer('long_form_videos').notNull().default(0),
     instagramVideos: integer('instagram_videos').notNull().default(0),
     remarks: varchar('remarks', { length: 500 }),
   },
@@ -336,6 +348,7 @@ export const creatorAgentDailyMetrics = pgTable(
     viralVideos: integer('viral_videos').notNull().default(0),
     leadsGenerated: integer('leads_generated').notNull().default(0),
     picsGiven: integer('pics_given').notNull().default(0),
+    longFormVideos: integer('long_form_videos').notNull().default(0),
   },
   (t) => ({
     logAgentUniq: uniqueIndex('creator_agent_daily_metrics_log_agent_uniq').on(t.logId, t.agentId),

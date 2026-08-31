@@ -8,6 +8,7 @@ import {
   operationalWeeks,
   creatorDailyMetrics,
   creatorAgentDailyMetrics,
+  creatorTeamAgents,
   viralPlatformCounts,
   notifications,
   auditLog,
@@ -16,6 +17,7 @@ import {
 import { eq, and, gte, lte, sum, count, sql } from 'drizzle-orm';
 import { isAdminAuthenticated } from '@/lib/auth-server';
 import { weekOverlapFactor, type DateRange } from '@/lib/domain/ranges';
+import { isLeaderPosition, leaderPositionName } from '@/lib/leader-positions';
 import {
   num as n,
   metric,
@@ -28,6 +30,8 @@ import {
   type StatRow,
   type PlatformCount,
   type MemberKind,
+  type MemberLink,
+  type TeamRevenue,
   type MemberAnalytics,
   type RangeAnalytics,
 } from '@/lib/domain/metrics';
@@ -40,6 +44,8 @@ export type {
   PlatformCount,
   StatRow,
   MemberKind,
+  MemberLink,
+  TeamRevenue,
   MemberAnalytics,
   RangeAnalytics,
 } from '@/lib/domain/metrics';
@@ -63,10 +69,13 @@ async function collectTargets(range: DateRange) {
       videoCallsTarget: weeklyTargets.videoCallsTarget,
       faceToFaceTarget: weeklyTargets.faceToFaceTarget,
       revenueTarget: weeklyTargets.revenueTarget,
+      reelsUploadedTarget: weeklyTargets.reelsUploadedTarget,
+      selfieVideosTarget: weeklyTargets.selfieVideosTarget,
       reelsTarget: weeklyTargets.reelsTarget,
       viralVideosTarget: weeklyTargets.viralVideosTarget,
       leadsTarget: weeklyTargets.leadsTarget,
       picsTarget: weeklyTargets.picsTarget,
+      longFormTarget: weeklyTargets.longFormTarget,
       teamVideosTarget: weeklyTargets.teamVideosTarget,
     })
     .from(weeklyTargets)
@@ -100,6 +109,7 @@ async function collectTargets(range: DateRange) {
       agent.viral += n(r.viralVideosTarget) * f;
       agent.leads += n(r.leadsTarget) * f;
       agent.pics += n(r.picsTarget) * f;
+      agent.longForm += n(r.longFormTarget) * f;
       byAgent.set(r.agentId, agent);
     }
   }
@@ -130,6 +140,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     platformRows,
     creatorPlatformRows,
     dailyRevenueSeries,
+    rosterRows,
     targets,
   ] = await Promise.all([
     db.query.teamMembers.findMany({
@@ -150,11 +161,11 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         revenue: sum(dailyLogs.salesRevenue),
         teamRevenue: sum(dailyLogs.teamRevenue),
         reelsUploaded: sum(dailyLogs.reelsUploaded),
+        selfieVideos: sum(dailyLogs.selfieVideos),
         leadsReceived: sum(dailyLogs.leadsReceived),
         logs: count(),
         present: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'present')`,
         remote: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'remote')`,
-        hybrid: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'hybrid')`,
         absent: sql<number>`count(*) filter (where ${dailyLogs.attendance} = 'absent')`,
       })
       .from(dailyLogs)
@@ -169,6 +180,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         viral: sum(creatorDailyMetrics.viralVideos),
         leads: sum(creatorDailyMetrics.leadsGenerated),
         pics: sum(creatorDailyMetrics.picsGiven),
+        longForm: sum(creatorDailyMetrics.longFormVideos),
         teamVideos: sum(creatorDailyMetrics.instagramVideos),
       })
       .from(creatorDailyMetrics)
@@ -184,6 +196,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         viral: sum(creatorAgentDailyMetrics.viralVideos),
         leads: sum(creatorAgentDailyMetrics.leadsGenerated),
         pics: sum(creatorAgentDailyMetrics.picsGiven),
+        longForm: sum(creatorAgentDailyMetrics.longFormVideos),
       })
       .from(creatorAgentDailyMetrics)
       .innerJoin(dailyLogs, eq(creatorAgentDailyMetrics.logId, dailyLogs.id))
@@ -221,8 +234,58 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       .groupBy(dailyLogs.logDate)
       .orderBy(dailyLogs.logDate),
 
+    // The creator↔agent roster, so each card can name the people on the other
+    // side of the link regardless of what was logged in the period.
+    db
+      .select({
+        creatorId: creatorTeamAgents.creatorId,
+        agentId: creatorTeamAgents.agentId,
+        displayOrder: creatorTeamAgents.displayOrder,
+      })
+      .from(creatorTeamAgents)
+      .orderBy(creatorTeamAgents.displayOrder),
+
     collectTargets(range),
   ]);
+
+  // A creator's agents, and an agent's creators — both off the same roster.
+  const memberById = new Map(members.map((m) => [m.id, m]));
+  const toLink = (id: string): MemberLink | null => {
+    const m = memberById.get(id);
+    return m
+      ? {
+          memberId: m.id,
+          fullName: m.fullName,
+          memberCode: m.memberCode,
+          positionName: m.position.name,
+        }
+      : null;
+  };
+  const agentsByCreator = new Map<string, MemberLink[]>();
+  const creatorsByAgent = new Map<string, MemberLink[]>();
+  for (const r of rosterRows) {
+    const agent = toLink(r.agentId);
+    if (agent) {
+      const list = agentsByCreator.get(r.creatorId) ?? [];
+      list.push(agent);
+      agentsByCreator.set(r.creatorId, list);
+    }
+    const creator = toLink(r.creatorId);
+    if (creator) {
+      const list = creatorsByAgent.get(r.agentId) ?? [];
+      list.push(creator);
+      creatorsByAgent.set(r.agentId, list);
+    }
+  }
+
+  // Agents are grouped by the position they hold, so a leader's team is
+  // everyone sitting on that leader's own position — "Ramesh-LER".
+  const membersByPosition = new Map<string, typeof members>();
+  for (const m of members) {
+    const list = membersByPosition.get(m.position.name) ?? [];
+    list.push(m);
+    membersByPosition.set(m.position.name, list);
+  }
 
   const salesByMember = new Map(salesRows.map((r) => [r.memberId, r]));
   const creatorByMember = new Map(creatorRows.map((r) => [r.memberId, r]));
@@ -255,6 +318,26 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       .filter(([p, c]) => c > 0 && !VIRAL_PLATFORMS.includes(p as never))
       .map(([platform, count]) => ({ platform, count }));
     return [...known, ...extra];
+  };
+
+  /** A leader's revenue roll-up; null for anyone who does not lead a team. */
+  const buildTeamRevenue = (leader: (typeof members)[number]): TeamRevenue | null => {
+    if (!isLeaderPosition(leader.position.name)) return null;
+
+    const own = leaderPositionName(leader.fullName, leader.position.name);
+    const team = membersByPosition.get(own) ?? [];
+
+    // The leader's own sales stay on their Revenue row; this is the team's.
+    const rows = team
+      .filter((t) => t.id !== leader.id)
+      .map((t) => ({
+        memberId: t.id,
+        fullName: t.fullName,
+        memberCode: t.memberCode,
+        revenue: n(salesByMember.get(t.id)?.revenue),
+      }));
+
+    return { total: rows.reduce((a, r) => a + r.revenue, 0), members: rows };
   };
 
   const memberSummaries: MemberAnalytics[] = members.map((m) => {
@@ -300,8 +383,10 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       logsSubmitted: n(s?.logs),
       daysPresent: n(s?.present),
       daysRemote: n(s?.remote),
-      daysHybrid: n(s?.hybrid),
       daysAbsent: n(s?.absent),
+      connections:
+        (kind === 'creator' ? agentsByCreator.get(m.id) : creatorsByAgent.get(m.id)) ?? [],
+      teamRevenue: buildTeamRevenue(m),
     };
   });
 
@@ -322,6 +407,18 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     ),
     metric('videoCalls', 'Video Calls', sumOf(salesRows, (r) => r.videoCalls), targets.company.videoCalls),
     metric('faceToFace', 'Face-to-Face', sumOf(salesRows, (r) => r.faceToFace), targets.company.faceToFace),
+    metric(
+      'reelsUploaded',
+      'Reels Uploaded',
+      sumOf(salesRows, (r) => r.reelsUploaded),
+      targets.company.reelsUploaded,
+    ),
+    metric(
+      'selfieVideos',
+      'Selfie Videos',
+      sumOf(salesRows, (r) => r.selfieVideos),
+      targets.company.selfieVideos,
+    ),
     metric('reels', 'Reels Given', sumOf(creatorRows, (r) => r.reels), targets.company.reels),
     metric('viral', 'Viral Videos (100K+ Views)', companyViral, targets.company.viral),
     metric('leads', 'Leads Generated', sumOf(creatorRows, (r) => r.leads), targets.company.leads),
@@ -330,6 +427,12 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       'Pics / Carousel / Poster',
       sumOf(creatorRows, (r) => r.pics),
       targets.company.pics,
+    ),
+    metric(
+      'longForm',
+      'Long Form Videos',
+      sumOf(creatorRows, (r) => r.longForm),
+      targets.company.longForm,
     ),
     metric(
       'teamVideos',

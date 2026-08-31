@@ -109,9 +109,6 @@ export default async function UserHomePage() {
               Remote <span className="text-raasta-ink tabular-nums font-medium">{mine.daysRemote}</span>
             </span>
             <span>
-              Hybrid <span className="text-raasta-ink tabular-nums font-medium">{mine.daysHybrid}</span>
-            </span>
-            <span>
               Absent <span className="text-raasta-ink tabular-nums font-medium">{mine.daysAbsent}</span>
             </span>
           </div>

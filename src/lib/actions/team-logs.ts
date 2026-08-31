@@ -10,7 +10,6 @@ import { parseDateString, todayDubai } from '@/lib/domain/weeks';
 export type DayState =
   | 'present'   // log submitted, member was in
   | 'remote'    // log submitted, worked remotely
-  | 'hybrid'    // log submitted, split between office and remote
   | 'absent'    // log submitted, marked absent
   | 'missing'   // a past day with no log
   | 'off'       // declared holiday
@@ -85,7 +84,7 @@ export async function getMemberLogCalendar(
     if (log) {
       // Anything the form can record maps to its own chip; unknown values from
       // older rows fall back to "present" rather than vanishing.
-      state = (['present', 'remote', 'hybrid', 'absent'] as const).includes(
+      state = (['present', 'remote', 'absent'] as const).includes(
         log.attendance as never,
       )
         ? (log.attendance as DayState)
