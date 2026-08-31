@@ -11,6 +11,8 @@ export const salesTargetSchema = z.object({
   videoCallsTarget: positiveInt,
   faceToFaceTarget: positiveInt,
   revenueTarget: positiveDec,
+  reelsUploadedTarget: positiveInt,
+  selfieVideosTarget: positiveInt,
 });
 
 // One block of numbers per agent on the creator's team.

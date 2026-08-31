@@ -130,6 +130,8 @@ export function TargetsClient({
             videoCallsTarget: n0(field('videoCallsTarget')),
             faceToFaceTarget: n0(field('faceToFaceTarget')),
             revenueTarget: n0(field('revenueTarget')),
+            reelsUploadedTarget: n0(field('reelsUploadedTarget')),
+            selfieVideosTarget: n0(field('selfieVideosTarget')),
           });
 
       if (!result.success) {
@@ -253,6 +255,8 @@ export function TargetsClient({
                     label="Revenue Target"
                     value={fmtAED(Number(creatorRow?.revenueTarget ?? 0))}
                   />
+                  <Row label="Reels Uploaded" value={String(creatorRow?.reelsUploadedTarget ?? 0)} />
+                  <Row label="Selfie Videos" value={String(creatorRow?.selfieVideosTarget ?? 0)} />
                 </>
               )}
             </div>
@@ -362,6 +366,12 @@ export function TargetsClient({
               <Input label="Revenue Target (AED)" type="number" min="0" placeholder="0"
                 value={String(field('revenueTarget'))}
                 onChange={(e) => setField('revenueTarget', e.target.value)} />
+              <Input label="Reels Uploaded Target" type="number" min="0" placeholder="0"
+                value={String(field('reelsUploadedTarget'))}
+                onChange={(e) => setField('reelsUploadedTarget', e.target.value)} />
+              <Input label="Selfie Videos Target" type="number" min="0" placeholder="0"
+                value={String(field('selfieVideosTarget'))}
+                onChange={(e) => setField('selfieVideosTarget', e.target.value)} />
             </div>
           )}
         </Card>
@@ -414,6 +424,8 @@ export function TargetsClient({
                 <Row label="Video Calls" value={String(n0(field('videoCallsTarget')))} />
                 <Row label="Face-to-Face" value={String(n0(field('faceToFaceTarget')))} />
                 <Row label="Revenue Target" value={fmtAED(n0(field('revenueTarget')))} />
+                <Row label="Reels Uploaded" value={String(n0(field('reelsUploadedTarget')))} />
+                <Row label="Selfie Videos" value={String(n0(field('selfieVideosTarget')))} />
               </>
             )}
           </div>

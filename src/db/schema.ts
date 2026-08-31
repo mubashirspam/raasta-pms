@@ -188,6 +188,11 @@ export const weeklyTargets = pgTable(
     videoCallsTarget: integer('video_calls_target'),
     faceToFaceTarget: integer('face_to_face_target'),
     revenueTarget: decimal('revenue_target', { precision: 14, scale: 2 }),
+    // The agent's own uploads, matched against reels_uploaded / selfie_videos
+    // on the daily log. Distinct from reelsTarget, which is what a creator
+    // commits to deliver *for* an agent.
+    reelsUploadedTarget: integer('reels_uploaded_target'),
+    selfieVideosTarget: integer('selfie_videos_target'),
     // Creator fields
     reelsTarget: integer('reels_target'),
     viralVideosTarget: integer('viral_videos_target'),

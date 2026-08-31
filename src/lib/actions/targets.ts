@@ -61,6 +61,8 @@ export async function submitSalesTarget(
       videoCallsTarget: data.videoCallsTarget,
       faceToFaceTarget: data.faceToFaceTarget,
       revenueTarget: String(data.revenueTarget),
+      reelsUploadedTarget: data.reelsUploadedTarget,
+      selfieVideosTarget: data.selfieVideosTarget,
       referenceNumber,
     })
     .returning();

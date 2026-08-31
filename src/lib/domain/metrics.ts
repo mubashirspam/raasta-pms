@@ -125,6 +125,8 @@ export interface TargetTotals {
   videoCalls: number;
   faceToFace: number;
   revenue: number;
+  reelsUploaded: number;
+  selfieVideos: number;
   reels: number;
   viral: number;
   leads: number;
@@ -138,6 +140,8 @@ export const emptyTargets = (): TargetTotals => ({
   videoCalls: 0,
   faceToFace: 0,
   revenue: 0,
+  reelsUploaded: 0,
+  selfieVideos: 0,
   reels: 0,
   viral: 0,
   leads: 0,
@@ -154,6 +158,8 @@ export function accumulateTarget(
     videoCallsTarget?: unknown;
     faceToFaceTarget?: unknown;
     revenueTarget?: unknown;
+    reelsUploadedTarget?: unknown;
+    selfieVideosTarget?: unknown;
     reelsTarget?: unknown;
     viralVideosTarget?: unknown;
     leadsTarget?: unknown;
@@ -167,6 +173,8 @@ export function accumulateTarget(
   into.videoCalls += num(row.videoCallsTarget) * factor;
   into.faceToFace += num(row.faceToFaceTarget) * factor;
   into.revenue += num(row.revenueTarget) * factor;
+  into.reelsUploaded += num(row.reelsUploadedTarget) * factor;
+  into.selfieVideos += num(row.selfieVideosTarget) * factor;
   into.reels += num(row.reelsTarget) * factor;
   into.viral += num(row.viralVideosTarget) * factor;
   into.leads += num(row.leadsTarget) * factor;
@@ -183,6 +191,8 @@ export interface SalesAggregate {
   videoCalls?: unknown;
   faceToFace?: unknown;
   revenue?: unknown;
+  reelsUploaded?: unknown;
+  selfieVideos?: unknown;
   leadsReceived?: unknown;
   organicCallMinutes?: unknown;
   marketingCallMinutes?: unknown;
@@ -256,6 +266,9 @@ export function buildMemberRows(input: MemberRowInput): {
       metric('videoCalls', 'Video Calls', num(sales?.videoCalls), ownTargets.videoCalls),
       metric('faceToFace', 'Face-to-Face', num(sales?.faceToFace), ownTargets.faceToFace),
       metric('revenue', 'Revenue', num(sales?.revenue), ownTargets.revenue, 'currency'),
+      // The agent's own uploads, straight off their daily log.
+      metric('reelsUploaded', 'Reels Uploaded', num(sales?.reelsUploaded), ownTargets.reelsUploaded),
+      metric('selfieVideos', 'Selfie Videos', num(sales?.selfieVideos), ownTargets.selfieVideos),
       // Delivered by the content creators who carry this agent on their team.
       metric('reelsReceived', 'Reels From Creators', num(credited?.reels), agentTargets.reels),
       metric('viralReceived', 'Viral Videos (100K+ Views)', viralTotal, agentTargets.viral),

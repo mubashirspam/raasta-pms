@@ -75,6 +75,8 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           videoCalls: sum(dailyLogs.videoCalls),
           faceToFace: sum(dailyLogs.faceToFace),
           revenue: sum(dailyLogs.salesRevenue),
+          reelsUploaded: sum(dailyLogs.reelsUploaded),
+          selfieVideos: sum(dailyLogs.selfieVideos),
           leadsReceived: sum(dailyLogs.leadsReceived),
           organicCallMinutes: sum(dailyLogs.organicCallMinutes),
           marketingCallMinutes: sum(dailyLogs.marketingCallMinutes),
@@ -92,6 +94,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           viral: sum(creatorDailyMetrics.viralVideos),
           leads: sum(creatorDailyMetrics.leadsGenerated),
           pics: sum(creatorDailyMetrics.picsGiven),
+          longForm: sum(creatorDailyMetrics.longFormVideos),
           teamVideos: sum(creatorDailyMetrics.instagramVideos),
         })
         .from(creatorDailyMetrics)
@@ -105,6 +108,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           viral: sum(creatorAgentDailyMetrics.viralVideos),
           leads: sum(creatorAgentDailyMetrics.leadsGenerated),
           pics: sum(creatorAgentDailyMetrics.picsGiven),
+          longForm: sum(creatorAgentDailyMetrics.longFormVideos),
         })
         .from(creatorAgentDailyMetrics)
         .innerJoin(dailyLogs, eq(creatorAgentDailyMetrics.logId, dailyLogs.id))
@@ -148,10 +152,13 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
           videoCallsTarget: weeklyTargets.videoCallsTarget,
           faceToFaceTarget: weeklyTargets.faceToFaceTarget,
           revenueTarget: weeklyTargets.revenueTarget,
+          reelsUploadedTarget: weeklyTargets.reelsUploadedTarget,
+          selfieVideosTarget: weeklyTargets.selfieVideosTarget,
           reelsTarget: weeklyTargets.reelsTarget,
           viralVideosTarget: weeklyTargets.viralVideosTarget,
           leadsTarget: weeklyTargets.leadsTarget,
           picsTarget: weeklyTargets.picsTarget,
+          longFormTarget: weeklyTargets.longFormTarget,
           teamVideosTarget: weeklyTargets.teamVideosTarget,
         })
         .from(weeklyTargets)
@@ -185,6 +192,7 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
       agentTargets.viral += n(r.viralVideosTarget) * f;
       agentTargets.leads += n(r.leadsTarget) * f;
       agentTargets.pics += n(r.picsTarget) * f;
+      agentTargets.longForm += n(r.longFormTarget) * f;
     }
   }
 
