@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { cn } from '@/lib/domain/helpers';
+import { Logo } from '@/components/ui/Logo';
 import { logoutAction } from '@/lib/actions/auth';
 import {
   Home,
@@ -60,9 +61,7 @@ export function NavBar({
     <>
       {/* Mobile header */}
       <header className="md:hidden sticky top-0 z-30 bg-raasta-surface/90 backdrop-blur border-b border-raasta-border px-4 py-3 flex items-center gap-3">
-        <div className="w-7 h-7 bg-gold-400 rounded-lg flex items-center justify-center shrink-0">
-          <span className="text-raasta-ink font-black text-[9px] tracking-tight">TN</span>
-        </div>
+        <Logo size={28} className="ring-1 ring-gold-300" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-raasta-ink truncate">{displayName}</p>
           {subtitle && <p className="text-[11px] text-raasta-muted truncate">{subtitle}</p>}
@@ -80,9 +79,7 @@ export function NavBar({
       {/* Desktop sidebar */}
       <nav className="hidden md:flex fixed left-0 top-0 h-full w-60 bg-raasta-surface border-r border-raasta-border flex-col py-6 px-3 z-40">
         <div className="flex items-center gap-3 px-3 mb-8">
-          <div className="w-8 h-8 bg-gold-400 rounded-lg flex items-center justify-center shrink-0">
-            <span className="text-raasta-ink font-black text-[10px] tracking-tight">TN</span>
-          </div>
+          <Logo size={32} className="ring-1 ring-gold-300" />
           <div className="min-w-0">
             <p className="font-bold text-sm tracking-tight text-raasta-ink leading-tight">
               Team Najeeb
