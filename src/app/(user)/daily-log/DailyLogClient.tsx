@@ -62,6 +62,8 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const [videoCalls, setVideoCalls] = useState<NumField>('');
   const [faceToFace, setFaceToFace] = useState<NumField>('');
   const [reelsUploaded, setReelsUploaded] = useState<NumField>('');
+  const [uploadedPlatforms, setUploadedPlatforms] = useState<NumField>('');
+  const [selfieVideos, setSelfieVideos] = useState<NumField>('');
   const [leadsReceived, setLeadsReceived] = useState<NumField>('');
   const [salesRevenue, setSalesRevenue] = useState<NumField>('');
   const [teamRevenue, setTeamRevenue] = useState<NumField>('');
@@ -78,6 +80,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
         reelsGiven: NumField;
         leadsGenerated: NumField;
         picsGiven: NumField;
+        longFormVideos: NumField;
         viral: Record<string, number>;
       }
     >
@@ -99,7 +102,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
 
   // The selected creator's roster and the day's totals summed across it.
 
-  type AgentMetricKey = 'reelsGiven' | 'leadsGenerated' | 'picsGiven';
+  type AgentMetricKey = 'reelsGiven' | 'leadsGenerated' | 'picsGiven' | 'longFormVideos';
 
   function metric(agentId: string, key: AgentMetricKey): NumField {
     return agentMetrics[agentId]?.[key] ?? '';
@@ -109,7 +112,13 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
     setAgentMetrics((prev) => ({
       ...prev,
       [agentId]: {
-        ...{ reelsGiven: '' as NumField, leadsGenerated: '' as NumField, picsGiven: '' as NumField, viral: {} },
+        ...{
+          reelsGiven: '' as NumField,
+          leadsGenerated: '' as NumField,
+          picsGiven: '' as NumField,
+          longFormVideos: '' as NumField,
+          viral: {},
+        },
         ...prev[agentId],
         [key]: value,
       },
@@ -127,6 +136,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
         reelsGiven: '' as NumField,
         leadsGenerated: '' as NumField,
         picsGiven: '' as NumField,
+        longFormVideos: '' as NumField,
         viral: {},
       };
       const next = Math.max(0, (cur.viral?.[platform] ?? 0) + delta);
@@ -145,6 +155,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
   const totalViral = myTeam.reduce((s, a) => s + agentViralTotal(a.id), 0);
   const totalLeads = myTeam.reduce((s, a) => s + n0(metric(a.id, 'leadsGenerated')), 0);
   const totalPics = myTeam.reduce((s, a) => s + n0(metric(a.id, 'picsGiven')), 0);
+  const totalLongForm = myTeam.reduce((s, a) => s + n0(metric(a.id, 'longFormVideos')), 0);
 
   // Detail rows must match the summed totals, so resize as the per-agent
   // numbers change rather than off a single input's onChange.
@@ -174,6 +185,8 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
             videoCalls: n0(videoCalls),
             faceToFace: n0(faceToFace),
             reelsUploaded: n0(reelsUploaded),
+            uploadedPlatforms: n0(uploadedPlatforms),
+            selfieVideos: n0(selfieVideos),
             leadsReceived: n0(leadsReceived),
             salesRevenue: n0(salesRevenue),
             teamRevenue: isLerBdm ? n0(teamRevenue) : undefined,
@@ -196,6 +209,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
               reelsGiven: n0(metric(a.id, 'reelsGiven')),
               leadsGenerated: n0(metric(a.id, 'leadsGenerated')),
               picsGiven: n0(metric(a.id, 'picsGiven')),
+              longFormVideos: n0(metric(a.id, 'longFormVideos')),
               viralPlatforms: VIRAL_PLATFORMS.filter((pl) => viralCount(a.id, pl) > 0).map((pl) => ({
                 platform: pl,
                 count: viralCount(a.id, pl),
@@ -333,6 +347,11 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                   <div className="space-y-3">
                     <Input label="Reels Uploaded" type="number" min="0" placeholder="0"
                       value={reelsUploaded} onChange={(e) => setReelsUploaded(parseNum(e.target.value))} />
+                    <Input label="Uploaded Platforms" type="number" min="0" placeholder="0"
+                      value={uploadedPlatforms}
+                      onChange={(e) => setUploadedPlatforms(parseNum(e.target.value))} />
+                    <Input label="Selfie Videos Count" type="number" min="0" placeholder="0"
+                      value={selfieVideos} onChange={(e) => setSelfieVideos(parseNum(e.target.value))} />
                     <Input label="Leads Received" type="number" min="0" placeholder="0"
                       value={leadsReceived} onChange={(e) => setLeadsReceived(parseNum(e.target.value))} />
                     <Input label="Sales Revenue (AED)" type="number" min="0" step="0.01" placeholder="0"
@@ -506,6 +525,9 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                             <Input label="Pics / Carousel / Poster" type="number" min="0" placeholder="0"
                               value={metric(agent.id, 'picsGiven')}
                               onChange={(e) => setMetric(agent.id, 'picsGiven', parseNum(e.target.value))} />
+                            <Input label="Long Form Videos" type="number" min="0" placeholder="0"
+                              value={metric(agent.id, 'longFormVideos')}
+                              onChange={(e) => setMetric(agent.id, 'longFormVideos', parseNum(e.target.value))} />
                           </div>
                         ))}
                         <div className="flex gap-4 text-xs text-raasta-muted pt-1">
@@ -513,6 +535,7 @@ export function DailyLogClient({ member, today, myTeam }: Props) {
                           <span>Viral: <span className="text-raasta-ink font-medium">{totalViral}</span></span>
                           <span>Leads: <span className="text-raasta-ink font-medium">{totalLeads}</span></span>
                           <span>Pics: <span className="text-raasta-ink font-medium">{totalPics}</span></span>
+                          <span>Long form: <span className="text-raasta-ink font-medium">{totalLongForm}</span></span>
                         </div>
                       </div>
                     )}

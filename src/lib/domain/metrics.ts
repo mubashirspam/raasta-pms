@@ -111,6 +111,7 @@ export interface TargetTotals {
   viral: number;
   leads: number;
   pics: number;
+  longForm: number;
   teamVideos: number;
 }
 
@@ -123,6 +124,7 @@ export const emptyTargets = (): TargetTotals => ({
   viral: 0,
   leads: 0,
   pics: 0,
+  longForm: 0,
   teamVideos: 0,
 });
 
@@ -138,6 +140,7 @@ export function accumulateTarget(
     viralVideosTarget?: unknown;
     leadsTarget?: unknown;
     picsTarget?: unknown;
+    longFormTarget?: unknown;
     teamVideosTarget?: unknown;
   },
   factor: number,
@@ -150,6 +153,7 @@ export function accumulateTarget(
   into.viral += num(row.viralVideosTarget) * factor;
   into.leads += num(row.leadsTarget) * factor;
   into.pics += num(row.picsTarget) * factor;
+  into.longForm += num(row.longFormTarget) * factor;
   into.teamVideos += num(row.teamVideosTarget) * factor;
 }
 
@@ -171,6 +175,7 @@ export interface CreatorAggregate {
   viral?: unknown;
   leads?: unknown;
   pics?: unknown;
+  longForm?: unknown;
   teamVideos?: unknown;
 }
 
@@ -179,6 +184,7 @@ export interface CreditedAggregate {
   viral?: unknown;
   leads?: unknown;
   pics?: unknown;
+  longForm?: unknown;
 }
 
 export interface MemberRowInput {
@@ -211,6 +217,7 @@ export function buildMemberRows(input: MemberRowInput): {
         metric('viral', 'Viral Videos (100K+ Views)', viralTotal, ownTargets.viral),
         metric('leads', 'Leads Generated', num(creator?.leads), ownTargets.leads),
         metric('pics', 'Pics / Carousel / Poster', num(creator?.pics), ownTargets.pics),
+        metric('longForm', 'Long Form Videos', num(creator?.longForm), ownTargets.longForm),
         metric(
           'teamVideos',
           'Team / Raasta Page Videos',
@@ -236,6 +243,7 @@ export function buildMemberRows(input: MemberRowInput): {
       metric('viralReceived', 'Viral Videos (100K+ Views)', viralTotal, agentTargets.viral),
       metric('leadsReceived', 'Leads From Creators', num(credited?.leads), agentTargets.leads),
       metric('pics', 'Pics / Carousel / Poster', num(credited?.pics), agentTargets.pics),
+      metric('longForm', 'Long Form Videos', num(credited?.longForm), agentTargets.longForm),
     ],
     cumulative: [
       stat('organicCallTime', 'Organic Call Time', organicMins, 'duration'),

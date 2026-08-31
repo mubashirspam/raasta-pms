@@ -22,6 +22,7 @@ export const creatorAgentTargetSchema = z.object({
   viralVideosTarget: positiveInt,
   leadsTarget: positiveInt,
   picsTarget: positiveInt,
+  longFormTarget: positiveInt,
 });
 
 export const creatorTargetSchema = z

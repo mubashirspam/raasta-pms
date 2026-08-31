@@ -68,6 +68,8 @@ export async function submitSalesLog(
         videoCalls: data.videoCalls,
         faceToFace: data.faceToFace,
         reelsUploaded: data.reelsUploaded,
+        uploadedPlatforms: data.uploadedPlatforms,
+        selfieVideos: data.selfieVideos,
         leadsReceived: data.leadsReceived,
         salesRevenue: String(data.salesRevenue),
         teamRevenue: data.teamRevenue === undefined ? null : String(data.teamRevenue),
@@ -169,6 +171,7 @@ export async function submitCreatorLog(
       ),
       leadsGenerated: data.agentMetrics.reduce((s, m) => s + m.leadsGenerated, 0),
       picsGiven: data.agentMetrics.reduce((s, m) => s + m.picsGiven, 0),
+      longFormVideos: data.agentMetrics.reduce((s, m) => s + m.longFormVideos, 0),
       instagramVideos: data.instagramVideos,
       remarks: data.remarks,
     });
@@ -182,6 +185,7 @@ export async function submitCreatorLog(
         viralVideos: m.viralPlatforms.reduce((x, r) => x + r.count, 0),
         leadsGenerated: m.leadsGenerated,
         picsGiven: m.picsGiven,
+        longFormVideos: m.longFormVideos,
       })),
     );
 

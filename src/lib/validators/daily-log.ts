@@ -40,6 +40,8 @@ export const salesLogSchema = z.object({
   videoCalls: positiveInt,
   faceToFace: positiveInt,
   reelsUploaded: positiveInt,
+  uploadedPlatforms: positiveInt,
+  selfieVideos: positiveInt,
   leadsReceived: positiveInt,
   salesRevenue: positiveDec,
   // Only LER/BDM submit this; the form hides it for plain Agents.
@@ -73,6 +75,7 @@ export const creatorAgentMetricSchema = z
     reelsGiven: positiveInt,
     leadsGenerated: positiveInt,
     picsGiven: positiveInt,
+    longFormVideos: positiveInt,
     // Viral videos are counted straight onto a platform, so the agent's viral
     // total for the day is the sum of these rows.
     viralPlatforms: z.array(viralPlatformRowSchema).default([]),

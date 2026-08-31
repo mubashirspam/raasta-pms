@@ -40,6 +40,7 @@ const EMPTY_AGENT = {
   viralVideosTarget: '',
   leadsTarget: '',
   picsTarget: '',
+  longFormTarget: '',
 };
 
 /** An untouched (or cleared) target field counts as zero. */
@@ -119,6 +120,7 @@ export function TargetsClient({
               viralVideosTarget: n0(agentField(a.id, 'viralVideosTarget')),
               leadsTarget: n0(agentField(a.id, 'leadsTarget')),
               picsTarget: n0(agentField(a.id, 'picsTarget')),
+              longFormTarget: n0(agentField(a.id, 'longFormTarget')),
             })),
           })
         : await submitSalesTarget({
@@ -240,6 +242,7 @@ export function TargetsClient({
                       <Row label="Viral Videos (100K+ Views)" value={String(r.viralVideosTarget ?? 0)} />
                       <Row label="Leads" value={String(r.leadsTarget ?? 0)} />
                       <Row label="Pics / Carousel / Poster" value={String(r.picsTarget ?? 0)} />
+                      <Row label="Long Form Videos" value={String(r.longFormTarget ?? 0)} />
                     </div>
                   ))}
                 </>
@@ -340,6 +343,9 @@ export function TargetsClient({
                   <Input label="Pics / Carousel / Poster Target" type="number" min="0" placeholder="0"
                     value={agentField(agent.id, 'picsTarget')}
                     onChange={(e) => setAgentField(agent.id, 'picsTarget', e.target.value)} />
+                  <Input label="Long Form Videos Target" type="number" min="0" placeholder="0"
+                    value={agentField(agent.id, 'longFormTarget')}
+                    onChange={(e) => setAgentField(agent.id, 'longFormTarget', e.target.value)} />
                 </div>
               ))}
             </div>
@@ -405,6 +411,7 @@ export function TargetsClient({
                     <Row label="Viral Videos (100K+ Views)" value={String(n0(agentField(agent.id, 'viralVideosTarget')))} />
                     <Row label="Leads" value={String(n0(agentField(agent.id, 'leadsTarget')))} />
                     <Row label="Pics / Carousel / Poster" value={String(n0(agentField(agent.id, 'picsTarget')))} />
+                    <Row label="Long Form Videos" value={String(n0(agentField(agent.id, 'longFormTarget')))} />
                   </div>
                 ))}
               </>

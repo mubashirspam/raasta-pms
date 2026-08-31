@@ -70,6 +70,7 @@ async function collectTargets(range: DateRange) {
       viralVideosTarget: weeklyTargets.viralVideosTarget,
       leadsTarget: weeklyTargets.leadsTarget,
       picsTarget: weeklyTargets.picsTarget,
+      longFormTarget: weeklyTargets.longFormTarget,
       teamVideosTarget: weeklyTargets.teamVideosTarget,
     })
     .from(weeklyTargets)
@@ -103,6 +104,7 @@ async function collectTargets(range: DateRange) {
       agent.viral += n(r.viralVideosTarget) * f;
       agent.leads += n(r.leadsTarget) * f;
       agent.pics += n(r.picsTarget) * f;
+      agent.longForm += n(r.longFormTarget) * f;
       byAgent.set(r.agentId, agent);
     }
   }
@@ -172,6 +174,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         viral: sum(creatorDailyMetrics.viralVideos),
         leads: sum(creatorDailyMetrics.leadsGenerated),
         pics: sum(creatorDailyMetrics.picsGiven),
+        longForm: sum(creatorDailyMetrics.longFormVideos),
         teamVideos: sum(creatorDailyMetrics.instagramVideos),
       })
       .from(creatorDailyMetrics)
@@ -187,6 +190,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
         viral: sum(creatorAgentDailyMetrics.viralVideos),
         leads: sum(creatorAgentDailyMetrics.leadsGenerated),
         pics: sum(creatorAgentDailyMetrics.picsGiven),
+        longForm: sum(creatorAgentDailyMetrics.longFormVideos),
       })
       .from(creatorAgentDailyMetrics)
       .innerJoin(dailyLogs, eq(creatorAgentDailyMetrics.logId, dailyLogs.id))
@@ -375,6 +379,12 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       'Pics / Carousel / Poster',
       sumOf(creatorRows, (r) => r.pics),
       targets.company.pics,
+    ),
+    metric(
+      'longForm',
+      'Long Form Videos',
+      sumOf(creatorRows, (r) => r.longForm),
+      targets.company.longForm,
     ),
     metric(
       'teamVideos',

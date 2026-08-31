@@ -363,6 +363,8 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                 <Stat label="Video calls" value={detail.videoCalls} />
                 <Stat label="Face-to-face" value={detail.faceToFace} />
                 <Stat label="Reels uploaded" value={detail.reelsUploaded} />
+                <Stat label="Uploaded platforms" value={detail.uploadedPlatforms} />
+                <Stat label="Selfie videos" value={detail.selfieVideos} />
                 <Stat label="Leads received" value={detail.leadsReceived} />
                 <Stat label="Connected self circle" value={detail.connectedSelfCircle} />
                 <Stat label="Sales revenue" value={fmtAED(detail.salesRevenue)} />
@@ -380,6 +382,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                 <Stat label="Viral videos" value={cm.viralVideos} />
                 <Stat label="Leads generated" value={cm.leadsGenerated} />
                 <Stat label="Pics / carousel / poster" value={cm.picsGiven} />
+                <Stat label="Long form videos" value={cm.longFormVideos} />
                 <Stat label="Team / Raasta page videos" value={cm.instagramVideos} />
               </div>
               {cm.remarks && (
@@ -402,6 +405,7 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                       <th className="font-medium py-1.5 text-right">Viral</th>
                       <th className="font-medium py-1.5 text-right">Leads</th>
                       <th className="font-medium py-1.5 text-right">Pics</th>
+                      <th className="font-medium py-1.5 text-right">Long form</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -425,6 +429,9 @@ function LogDetailCard({ detail }: { detail: LogDetail }) {
                         </td>
                         <td className="py-2 text-right tabular-nums text-raasta-ink">
                           {am.picsGiven}
+                        </td>
+                        <td className="py-2 text-right tabular-nums text-raasta-ink">
+                          {am.longFormVideos}
                         </td>
                       </tr>
                     ))}

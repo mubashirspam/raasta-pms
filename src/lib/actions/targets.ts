@@ -158,6 +158,7 @@ export async function submitCreatorTarget(
         viralVideosTarget: t.viralVideosTarget,
         leadsTarget: t.leadsTarget,
         picsTarget: t.picsTarget,
+        longFormTarget: t.longFormTarget,
         referenceNumber,
       })),
     ]);
