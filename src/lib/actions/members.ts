@@ -12,6 +12,7 @@ import { eq, and, count, sql } from 'drizzle-orm';
 import { addMemberSchema, updateMemberSchema } from '@/lib/validators/members';
 import { isAdminAuthenticated } from '@/lib/auth-server';
 import { writeAudit, createUserForMember, regeneratePin } from '@/lib/auth';
+import { syncLeaderPosition } from '@/lib/leader-positions';
 import { nanoid } from 'nanoid';
 
 /** Members with their login credentials. Admin-only — PINs are readable here. */
@@ -122,6 +123,13 @@ export async function addMember(
     }
   }
 
+  // An LER/BDM leads a team, so they also get a position of their own —
+  // "Nimziya-BDM" — for the agents reporting to them to be assigned to.
+  const derived = await syncLeaderPosition({
+    fullName: data.fullName,
+    positionId: data.positionId,
+  });
+
   // Every member gets a login. Credentials are returned once so the admin can
   // hand them over; they stay readable on the Manage Team page.
   const credentials = await createUserForMember(id, data.fullName);
@@ -130,6 +138,7 @@ export async function addMember(
     fullName: data.fullName,
     memberCode,
     username: credentials.username,
+    ...(derived.created ? { positionCreated: derived.created } : {}),
   });
   revalidatePath('/manage-team');
   revalidatePath('/targets');
@@ -152,12 +161,33 @@ export async function updateMember(
 
   const data = parsed.data;
 
+  // Captured before the write so a rename can move the leader's own position
+  // instead of stranding it under the old name.
+  const before = await db.query.teamMembers.findFirst({
+    where: eq(teamMembers.id, memberId),
+  });
+
   await db
     .update(teamMembers)
     .set({ ...data, updatedAt: new Date() })
     .where(eq(teamMembers.id, memberId));
 
-  await writeAudit('UPDATE_MEMBER', 'team_member', memberId, data);
+  const after = await db.query.teamMembers.findFirst({
+    where: eq(teamMembers.id, memberId),
+  });
+  // Also covers an agent promoted to LER/BDM, who has no position yet.
+  const derived = after
+    ? await syncLeaderPosition(
+        { fullName: after.fullName, positionId: after.positionId },
+        before?.fullName,
+      )
+    : {};
+
+  await writeAudit('UPDATE_MEMBER', 'team_member', memberId, {
+    ...data,
+    ...(derived.created ? { positionCreated: derived.created } : {}),
+    ...(derived.renamed ? { positionRenamed: derived.renamed } : {}),
+  });
   revalidatePath('/manage-team');
   revalidatePath('/targets');
   revalidatePath('/daily-log');
