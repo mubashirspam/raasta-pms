@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginAction } from '@/lib/actions/auth';
 import { Button } from '@/components/ui/Button';
+import { Logo } from '@/components/ui/Logo';
 import { AlertCircle, User } from 'lucide-react';
 
 const PIN_LENGTH = 4;
@@ -93,9 +94,7 @@ export function LoginForm() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-raasta-bg">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gold-400 shadow-lift flex items-center justify-center mb-4">
-            <span className="text-raasta-ink font-black text-lg tracking-tight">TN</span>
-          </div>
+          <Logo size={56} priority className="mb-4 shadow-lift ring-2 ring-gold-300" />
           <h1 className="text-xl font-bold tracking-tight text-raasta-ink">Team Najeeb</h1>
           <p className="text-sm text-raasta-muted mt-1">Performance Tracker</p>
         </div>

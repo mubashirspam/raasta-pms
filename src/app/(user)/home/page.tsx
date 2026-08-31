@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { MetricBar } from '@/components/ui/MetricBar';
 import { StatTiles } from '@/components/ui/StatTiles';
 import { PlatformChips } from '@/components/charts/PlatformBars';
+import { Logo } from '@/components/ui/Logo';
 import { Target, ClipboardList, ChevronRight } from 'lucide-react';
 
 const TILES = [
@@ -34,13 +35,16 @@ export default async function UserHomePage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-raasta-ink">
-          Hello, {member.fullName.split(' ')[0]}
-        </h1>
-        <p className="text-sm text-raasta-muted mt-1">
-          {member.category.name} · {MONTHS[month]} {year}
-        </p>
+      <div className="flex items-center gap-3">
+        <Logo size={48} priority className="ring-2 ring-gold-300" />
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-raasta-ink truncate">
+            Hello, {member.fullName.split(' ')[0]}
+          </h1>
+          <p className="text-sm text-raasta-muted mt-0.5">
+            {member.category.name} · {MONTHS[month]} {year}
+          </p>
+        </div>
       </div>
 
       {/* Your own progress, above the actions. */}
