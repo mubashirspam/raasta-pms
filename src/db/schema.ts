@@ -206,6 +206,12 @@ export const weeklyTargets = pgTable(
     status: varchar('status', { length: 20 }).notNull().default('submitted'),
     referenceNumber: varchar('reference_number', { length: 30 }).notNull(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    // Targets are locked to the member once submitted; only an admin can change
+    // them afterwards. These record the last such override — the full before/
+    // after diff of every edit lives in audit_log.
+    editedAt: timestamp('edited_at', { withTimezone: true }),
+    editedBy: varchar('edited_by', { length: 100 }),
+    editReason: varchar('edit_reason', { length: 250 }),
   },
   (t) => ({
     // Postgres treats NULLs as distinct, so a plain composite unique would let
