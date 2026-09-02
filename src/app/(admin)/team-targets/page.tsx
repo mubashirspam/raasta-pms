@@ -1,5 +1,6 @@
 import { TeamTargetsClient } from './TeamTargetsClient';
 import { getMembers } from '@/lib/actions/members';
+import { getCreatorTeam } from '@/lib/actions/targets';
 import {
   getMemberTargetCalendar,
   getTargetDetail,
@@ -51,6 +52,14 @@ export default async function TeamTargetsPage({
   const detail =
     memberId && selectedWeekId ? await getTargetDetail(memberId, selectedWeekId) : null;
 
+  // Adding an agent to a creator's week offers their roster first; the picker
+  // needs to know who is on it to say so.
+  const selectedMember = members.find((m) => m.id === memberId) ?? null;
+  const rosterAgentIds =
+    selectedMember?.category.name === 'Content Creator'
+      ? (await getCreatorTeam(selectedMember.id)).map((r) => r.agentId)
+      : [];
+
   return (
     <TeamTargetsClient
       members={members}
@@ -63,6 +72,7 @@ export default async function TeamTargetsPage({
       detail={detail}
       selectedWeekId={selectedWeekId}
       counts={counts}
+      rosterAgentIds={rosterAgentIds}
     />
   );
 }

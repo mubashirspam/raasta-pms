@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { Card, CardTitle, CardHint } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { MonthStrip } from '@/components/ui/MonthStrip';
 import { cn, fmtAED, MONTHS } from '@/lib/domain/helpers';
@@ -18,7 +19,17 @@ import {
   type WeekTargetSummary,
 } from '@/lib/actions/team-targets';
 import type { TeamMember, EmployeeCategory, Position } from '@/db/schema';
-import { Search, Pencil, Lock, AlertTriangle, Target } from 'lucide-react';
+import {
+  Search,
+  Pencil,
+  Lock,
+  AlertTriangle,
+  Target,
+  Plus,
+  Trash2,
+  RotateCcw,
+  type LucideIcon,
+} from 'lucide-react';
 
 type MemberWithRelations = TeamMember & { category: EmployeeCategory; position: Position };
 
@@ -34,6 +45,8 @@ interface Props {
   detail: TargetDetail | null;
   selectedWeekId: number | null;
   counts: Record<string, { weeksSet: number; edited: number }>;
+  /** The selected creator's roster, so the add-agent picker can say who is on it. */
+  rosterAgentIds: string[];
 }
 
 // ─── Field maps ────────────────────────────────────────────────────────────────
@@ -73,8 +86,11 @@ const STATE_BADGE: Record<WeekTargetState, { variant: 'green' | 'red' | 'gray'; 
   upcoming: { variant: 'gray', label: 'Upcoming' },
 };
 
-/** A draft key: which row, which field. */
-const dk = (targetId: number, field: string) => `${targetId}:${field}`;
+/** A draft key: which row, which field. Agents being added key on `new:<id>`. */
+const dk = (targetId: number | string, field: string) => `${targetId}:${field}`;
+
+/** The draft key prefix for an agent the admin is adding to the week. */
+const newRowId = (agentId: string) => `new:${agentId}`;
 
 /** A stored target value as an edit-box string; nulls read as 0. */
 const asText = (v: unknown) => (v == null ? '0' : String(Number(v)));
@@ -98,6 +114,7 @@ export function TeamTargetsClient({
   detail,
   selectedWeekId,
   counts,
+  rosterAgentIds,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -105,6 +122,11 @@ export function TeamTargetsClient({
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  // Agent rows marked for removal, and agents being added to the week. Both are
+  // held until Save, so a stray click changes nothing the member committed to.
+  const [removedIds, setRemovedIds] = useState<number[]>([]);
+  const [addedAgentIds, setAddedAgentIds] = useState<string[]>([]);
+  const [addingAgentId, setAddingAgentId] = useState('');
 
   const selectedMember = members.find((m) => m.id === memberId) ?? null;
   const isCreator = selectedMember?.category.name === 'Content Creator';
@@ -128,17 +150,62 @@ export function TeamTargetsClient({
     setDraft(JSON.parse(baselineKey) as Record<string, string>);
     setEditing(false);
     setReason('');
+    setRemovedIds([]);
+    setAddedAgentIds([]);
+    setAddingAgentId('');
   }, [baselineKey]);
 
   const changedKeys = useMemo(() => {
     const changed = new Set<string>();
+    // A row being removed is not also a row being edited.
+    const removed = new Set(removedIds.map(String));
     for (const key of Object.keys(baseline)) {
+      if (removed.has(key.split(':')[0])) continue;
       if (n0(draft[key]) !== Number(baseline[key])) changed.add(key);
     }
     return changed;
-  }, [draft, baseline]);
+  }, [draft, baseline, removedIds]);
 
-  const dirty = changedKeys.size > 0;
+  const dirty = changedKeys.size > 0 || removedIds.length > 0 || addedAgentIds.length > 0;
+
+  // Agents already carrying a row this week cannot be added again.
+  const targetedAgentIds = useMemo(
+    () => new Set((detail ?? []).filter((r) => r.agentId).map((r) => r.agentId!)),
+    [detail],
+  );
+
+  const addedAgents = useMemo(
+    () =>
+      addedAgentIds
+        .map((id) => members.find((m) => m.id === id))
+        .filter((m): m is MemberWithRelations => !!m),
+    [addedAgentIds, members],
+  );
+
+  // Sales agents with no row in this week: the creator's own roster first, then
+  // anyone else — picking one of those puts them on the roster as well.
+  const addableAgents = useMemo(() => {
+    if (!isCreator) return [];
+    const roster = new Set(rosterAgentIds);
+    return members
+      .filter(
+        (m) =>
+          m.isActive &&
+          m.category.name === 'Sales Agent' &&
+          m.id !== memberId &&
+          !targetedAgentIds.has(m.id) &&
+          !addedAgentIds.includes(m.id),
+      )
+      .sort(
+        (a, b) =>
+          Number(roster.has(b.id)) - Number(roster.has(a.id)) ||
+          a.fullName.localeCompare(b.fullName),
+      )
+      .map((m) => ({
+        value: m.id,
+        label: `${m.fullName} (${m.memberCode})${roster.has(m.id) ? '' : ' · not on the team'}`,
+      }));
+  }, [isCreator, members, memberId, rosterAgentIds, targetedAgentIds, addedAgentIds]);
 
   const filteredMembers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -173,7 +240,37 @@ export function TeamTargetsClient({
     setDraft(JSON.parse(baselineKey) as Record<string, string>);
     setReason('');
     setEditing(false);
+    setRemovedIds([]);
+    setAddedAgentIds([]);
+    setAddingAgentId('');
   }, [baselineKey]);
+
+  // Adding an agent seeds their five boxes at zero, so the block reads the same
+  // as every other agent block and an untouched add still writes a real target.
+  const addAgent = useCallback((agentId: string) => {
+    if (!agentId) return;
+    setAddedAgentIds((p) => (p.includes(agentId) ? p : [...p, agentId]));
+    setDraft((p) => ({
+      ...p,
+      ...Object.fromEntries(AGENT_FIELDS.map((f) => [dk(newRowId(agentId), f.key), '0'])),
+    }));
+    setAddingAgentId('');
+  }, []);
+
+  const discardNewAgent = useCallback((agentId: string) => {
+    setAddedAgentIds((p) => p.filter((id) => id !== agentId));
+    setDraft((p) => {
+      const next = { ...p };
+      for (const f of AGENT_FIELDS) delete next[dk(newRowId(agentId), f.key)];
+      return next;
+    });
+  }, []);
+
+  const toggleRemoveRow = useCallback((targetId: number) => {
+    setRemovedIds((p) =>
+      p.includes(targetId) ? p.filter((id) => id !== targetId) : [...p, targetId],
+    );
+  }, []);
 
   // Escape backs out of an edit, the way it closes any other transient state.
   useEffect(() => {
@@ -203,6 +300,15 @@ export function TeamTargetsClient({
 
       if (isCreator) {
         const creatorRowData = detail.find((r) => r.agentId === null) ?? null;
+        const keptAgentRows = detail.filter(
+          (r) => r.agentId !== null && !removedIds.includes(r.id),
+        );
+        // The server refuses this too; catching it here keeps the admin from
+        // losing a typed-out edit to a rejected save.
+        if (keptAgentRows.length + addedAgentIds.length === 0) {
+          toast.error('A creator target must keep at least one agent.');
+          return;
+        }
         result = await updateCreatorTargetAsAdmin({
           memberId,
           weekId: selectedWeek.week.id,
@@ -213,16 +319,23 @@ export function TeamTargetsClient({
                 teamVideosTarget: n0(draft[dk(creatorRowData.id, 'teamVideosTarget')]),
               }
             : null,
-          agentRows: detail
-            .filter((r) => r.agentId !== null)
-            .map((r) => ({
-              targetId: r.id,
-              reelsTarget: n0(draft[dk(r.id, 'reelsTarget')]),
-              viralVideosTarget: n0(draft[dk(r.id, 'viralVideosTarget')]),
-              leadsTarget: n0(draft[dk(r.id, 'leadsTarget')]),
-              picsTarget: n0(draft[dk(r.id, 'picsTarget')]),
-              longFormTarget: n0(draft[dk(r.id, 'longFormTarget')]),
-            })),
+          agentRows: keptAgentRows.map((r) => ({
+            targetId: r.id,
+            reelsTarget: n0(draft[dk(r.id, 'reelsTarget')]),
+            viralVideosTarget: n0(draft[dk(r.id, 'viralVideosTarget')]),
+            leadsTarget: n0(draft[dk(r.id, 'leadsTarget')]),
+            picsTarget: n0(draft[dk(r.id, 'picsTarget')]),
+            longFormTarget: n0(draft[dk(r.id, 'longFormTarget')]),
+          })),
+          newAgentRows: addedAgentIds.map((agentId) => ({
+            agentId,
+            reelsTarget: n0(draft[dk(newRowId(agentId), 'reelsTarget')]),
+            viralVideosTarget: n0(draft[dk(newRowId(agentId), 'viralVideosTarget')]),
+            leadsTarget: n0(draft[dk(newRowId(agentId), 'leadsTarget')]),
+            picsTarget: n0(draft[dk(newRowId(agentId), 'picsTarget')]),
+            longFormTarget: n0(draft[dk(newRowId(agentId), 'longFormTarget')]),
+          })),
+          removedTargetIds: removedIds,
         });
       } else {
         const row = detail[0];
@@ -246,6 +359,9 @@ export function TeamTargetsClient({
       toast.success(result.unchanged ? 'Nothing had changed' : 'Target updated');
       setEditing(false);
       setReason('');
+      setRemovedIds([]);
+      setAddedAgentIds([]);
+      setAddingAgentId('');
       router.refresh();
     } catch {
       toast.error('Could not save the target. Please try again.');
@@ -416,11 +532,19 @@ export function TeamTargetsClient({
                 dirty={dirty}
                 reason={reason}
                 saving={saving}
+                removedIds={removedIds}
+                addedAgents={addedAgents}
+                addableAgents={addableAgents}
+                addingAgentId={addingAgentId}
                 onStartEdit={() => setEditing(true)}
                 onCancel={cancelEdit}
                 onSave={handleSave}
                 onReasonChange={setReason}
                 onFieldChange={(key, value) => setDraft((p) => ({ ...p, [key]: value }))}
+                onAddingAgentChange={setAddingAgentId}
+                onAddAgent={addAgent}
+                onDiscardNewAgent={discardNewAgent}
+                onToggleRemoveRow={toggleRemoveRow}
               />
             ) : (
               <Card>
@@ -456,11 +580,20 @@ interface DetailProps {
   dirty: boolean;
   reason: string;
   saving: boolean;
+  /** Agent rows the admin has marked for removal — struck through until saved. */
+  removedIds: number[];
+  addedAgents: MemberWithRelations[];
+  addableAgents: { value: string; label: string }[];
+  addingAgentId: string;
   onStartEdit: () => void;
   onCancel: () => void;
   onSave: () => void;
   onReasonChange: (v: string) => void;
   onFieldChange: (key: string, value: string) => void;
+  onAddingAgentChange: (v: string) => void;
+  onAddAgent: (agentId: string) => void;
+  onDiscardNewAgent: (agentId: string) => void;
+  onToggleRemoveRow: (targetId: number) => void;
 }
 
 function TargetDetailCard({
@@ -473,11 +606,19 @@ function TargetDetailCard({
   dirty,
   reason,
   saving,
+  removedIds,
+  addedAgents,
+  addableAgents,
+  addingAgentId,
   onStartEdit,
   onCancel,
   onSave,
   onReasonChange,
   onFieldChange,
+  onAddingAgentChange,
+  onAddAgent,
+  onDiscardNewAgent,
+  onToggleRemoveRow,
 }: DetailProps) {
   const first = detail[0];
   const creatorRow = detail.find((r) => r.agentId === null) ?? null;
@@ -491,6 +632,21 @@ function TargetDetailCard({
   const lastEdit = detail
     .filter((r) => r.editedAt)
     .sort((a, b) => (a.editedAt! < b.editedAt! ? 1 : -1))[0];
+
+  // What Save is about to do, in the same words the member's notification uses.
+  const editSummary = (() => {
+    const parts: string[] = [];
+    if (changedKeys.size) {
+      parts.push(`${changedKeys.size} value${changedKeys.size === 1 ? '' : 's'} changed`);
+    }
+    if (addedAgents.length) {
+      parts.push(`${addedAgents.length} agent${addedAgents.length === 1 ? '' : 's'} added`);
+    }
+    if (removedIds.length) {
+      parts.push(`${removedIds.length} agent${removedIds.length === 1 ? '' : 's'} removed`);
+    }
+    return parts.length ? parts.join(' · ') : 'No changes yet';
+  })();
 
   const renderField = (row: TargetDetailRow, f: FieldSpec) => {
     const key = dk(row.id, f.key);
@@ -590,18 +746,111 @@ function TargetDetailCard({
             )}
           </Section>
 
-          {agentRows.map((row) => (
-            <Section
-              key={row.id}
-              title={`${row.agent?.fullName ?? 'Agent'}${
-                row.agent?.position ? ` · ${row.agent.position.name}` : ''
-              }`}
-            >
-              <div className={editing ? 'grid gap-3 sm:grid-cols-2' : 'space-y-1 text-sm'}>
-                {AGENT_FIELDS.map((f) => renderField(row, f))}
-              </div>
+          {agentRows.map((row) => {
+            const removed = removedIds.includes(row.id);
+            return (
+              <Section
+                key={row.id}
+                dimmed={removed}
+                title={`${row.agent?.fullName ?? 'Agent'}${
+                  row.agent?.position ? ` · ${row.agent.position.name}` : ''
+                }`}
+                action={
+                  editing && (
+                    <RowAction
+                      onClick={() => onToggleRemoveRow(row.id)}
+                      disabled={saving}
+                      danger={!removed}
+                      icon={removed ? RotateCcw : Trash2}
+                      label={removed ? 'Keep' : 'Remove'}
+                      aria-label={`${removed ? 'Keep' : 'Remove'} ${
+                        row.agent?.fullName ?? 'agent'
+                      }`}
+                    />
+                  )
+                }
+              >
+                {removed ? (
+                  <p className="text-xs text-warn-500">
+                    Dropped from this week when you save — the numbers the creator committed to
+                    for this agent go with it.
+                  </p>
+                ) : (
+                  <div className={editing ? 'grid gap-3 sm:grid-cols-2' : 'space-y-1 text-sm'}>
+                    {AGENT_FIELDS.map((f) => renderField(row, f))}
+                  </div>
+                )}
+              </Section>
+            );
+          })}
+
+          {/* Agents the admin is adding to a week already submitted without them. */}
+          {editing &&
+            addedAgents.map((agent) => (
+              <Section
+                key={`new-${agent.id}`}
+                title={`${agent.fullName} · ${agent.position.name}`}
+                badge={<Badge variant="green">Adding</Badge>}
+                action={
+                  <RowAction
+                    onClick={() => onDiscardNewAgent(agent.id)}
+                    disabled={saving}
+                    danger
+                    icon={Trash2}
+                    label="Discard"
+                    aria-label={`Discard ${agent.fullName}`}
+                  />
+                }
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {AGENT_FIELDS.map((f) => (
+                    <NumberField
+                      key={dk(newRowId(agent.id), f.key)}
+                      label={f.label}
+                      value={draft[dk(newRowId(agent.id), f.key)] ?? ''}
+                      changed
+                      disabled={saving}
+                      onChange={(v) => onFieldChange(dk(newRowId(agent.id), f.key), v)}
+                    />
+                  ))}
+                </div>
+              </Section>
+            ))}
+
+          {editing && (
+            <Section title="Add an agent to this week">
+              {addableAgents.length ? (
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Select
+                      aria-label="Agent to add"
+                      value={addingAgentId}
+                      disabled={saving}
+                      onChange={(e) => onAddingAgentChange(e.target.value)}
+                      placeholder="Select a sales agent"
+                      options={addableAgents}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => onAddAgent(addingAgentId)}
+                    disabled={!addingAgentId || saving}
+                  >
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    Add
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-raasta-faint">
+                  Every active sales agent already has a target for this week.
+                </p>
+              )}
+              <CardHint>
+                An agent who is not on the creator&apos;s team joins it as well, so the next week
+                they file already includes them.
+              </CardHint>
             </Section>
-          ))}
+          )}
         </>
       )}
 
@@ -628,11 +877,7 @@ function TargetDetailCard({
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-raasta-muted">
-              {dirty
-                ? `${changedKeys.size} value${changedKeys.size === 1 ? '' : 's'} changed`
-                : 'No changes yet'}
-            </p>
+            <p className="text-xs text-raasta-muted">{editSummary}</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>
                 Cancel
@@ -648,12 +893,67 @@ function TargetDetailCard({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  badge,
+  action,
+  dimmed,
+  children,
+}: {
+  title: string;
+  badge?: React.ReactNode;
+  action?: React.ReactNode;
+  dimmed?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="pt-4 mt-4 border-t border-raasta-line">
-      <p className="text-xs font-semibold text-raasta-muted mb-3">{title}</p>
+    <div className={cn('pt-4 mt-4 border-t border-raasta-line', dimmed && 'opacity-60')}>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <p className="text-xs font-semibold text-raasta-muted flex items-center gap-1.5 min-w-0">
+          <span className="truncate">{title}</span>
+          {badge}
+        </p>
+        {action}
+      </div>
       {children}
     </div>
+  );
+}
+
+/** Remove / keep / discard, sized to sit beside a section title. */
+function RowAction({
+  onClick,
+  disabled,
+  danger,
+  icon: Icon,
+  label,
+  'aria-label': ariaLabel,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  danger?: boolean;
+  icon: LucideIcon;
+  label: string;
+  'aria-label': string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={cn(
+        'shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400',
+        danger
+          ? 'text-raasta-faint hover:text-bad-500 hover:bg-bad-50'
+          : 'text-raasta-muted hover:text-raasta-ink hover:bg-raasta-subtle',
+        disabled && 'opacity-50 pointer-events-none',
+      )}
+    >
+      <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+      {label}
+    </button>
   );
 }
 

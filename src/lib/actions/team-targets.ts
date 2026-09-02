@@ -18,6 +18,8 @@ import { db } from '@/db';
 import {
   weeklyTargets,
   notifications,
+  teamMembers,
+  creatorTeamAgents,
   type OperationalWeek,
 } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -238,11 +240,19 @@ export async function getMonthTargetCounts(
 
 // ─── Writes ────────────────────────────────────────────────────────────────────
 
-/** The notice the member gets when their locked target moves, and why. */
+/** "3 values", "1 agent" — the notification says what moved, not just that something did. */
+function plural(n: number, noun: string) {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * The notice the member gets when their locked target moves, and why. `parts`
+ * is the summary of what changed — values rewritten, agents added or dropped.
+ */
 function editNotification(
   memberId: string,
   weekLabel: string,
-  fieldCount: number,
+  parts: string[],
   reason?: string,
 ): typeof notifications.$inferInsert {
   return {
@@ -250,7 +260,7 @@ function editNotification(
     title: 'Target updated by admin',
     body:
       `Your target for ${weekLabel} was updated by the admin ` +
-      `(${fieldCount} value${fieldCount === 1 ? '' : 's'} changed).` +
+      `(${parts.join(', ')}).` +
       (reason ? ` Reason: ${reason}` : ''),
     memberId,
   };
@@ -314,7 +324,7 @@ export async function updateSalesTargetAsAdmin(raw: unknown): Promise<ActionResu
         editNotification(
           existing.memberId,
           existing.week.label,
-          Object.keys(changes).length,
+          [`${plural(Object.keys(changes).length, 'value')} changed`],
           reason,
         ),
       );
@@ -339,10 +349,21 @@ export async function updateSalesTargetAsAdmin(raw: unknown): Promise<ActionResu
   return { success: true };
 }
 
+/** The per-agent numbers on a creator target, in the order the form shows them. */
+const AGENT_TARGET_FIELDS = [
+  'reelsTarget',
+  'viralVideosTarget',
+  'leadsTarget',
+  'picsTarget',
+  'longFormTarget',
+] as const;
+
 /**
  * Overwrite a creator's weekly target: the creator-level team-video row plus
- * one row per agent. All of it lands together or not at all, so the week is
- * never half-edited.
+ * one row per agent. Agents can also be added to the week or dropped from it —
+ * a roster changes mid-week, an agent is left out, an agent is targeted who
+ * never belonged to the creator. All of it lands together or not at all, so
+ * the week is never half-edited.
  */
 export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionResult> {
   const admin = await getCurrentUser();
@@ -352,7 +373,8 @@ export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionRe
   if (!parsed.success) {
     return { success: false, error: parsed.error.errors[0]?.message };
   }
-  const { memberId, weekId, reason, creatorRow, agentRows } = parsed.data;
+  const { memberId, weekId, reason, creatorRow, agentRows, newAgentRows, removedTargetIds } =
+    parsed.data;
 
   const existingRows = await db.query.weeklyTargets.findMany({
     where: and(eq(weeklyTargets.memberId, memberId), eq(weeklyTargets.weekId, weekId)),
@@ -365,10 +387,11 @@ export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionRe
   const byId = new Map(existingRows.map((r) => [r.id, r]));
 
   // Every id must be one of this member's rows for this week. Without the
-  // check, a crafted payload could rewrite somebody else's target.
+  // check, a crafted payload could rewrite — or delete — somebody else's target.
   const submittedIds = [
     ...(creatorRow ? [creatorRow.targetId] : []),
     ...agentRows.map((r) => r.targetId),
+    ...removedTargetIds,
   ];
   for (const id of submittedIds) {
     if (!byId.has(id)) {
@@ -380,6 +403,64 @@ export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionRe
   }
   if (agentRows.some((r) => byId.get(r.targetId)!.agentId === null)) {
     return { success: false, error: 'That row is the creator row, not an agent target.' };
+  }
+  // The creator's own row carries the week's team-video target and the
+  // reference the member submitted under; only agents can be dropped.
+  if (removedTargetIds.some((id) => byId.get(id)!.agentId === null)) {
+    return { success: false, error: "The creator's own row cannot be removed." };
+  }
+
+  const removedSet = new Set(removedTargetIds);
+  const removedRows = removedTargetIds.map((id) => byId.get(id)!);
+
+  // ── Agents being added to the week ──────────────────────────────────────────
+  const existingAgentIds = new Set(
+    existingRows.filter((r) => r.agentId !== null).map((r) => r.agentId!),
+  );
+  const addedNames = new Map<string, string>();
+  let rosterAdditions: string[] = [];
+
+  if (newAgentRows.length > 0) {
+    const addedIds = newAgentRows.map((r) => r.agentId);
+    if (addedIds.some((id) => existingAgentIds.has(id))) {
+      return { success: false, error: 'That agent already has a target for this week.' };
+    }
+    if (addedIds.includes(memberId)) {
+      return { success: false, error: 'A creator cannot be their own agent.' };
+    }
+
+    const agents = await db.query.teamMembers.findMany({
+      where: inArray(teamMembers.id, addedIds),
+      with: { category: true },
+    });
+    const byAgentId = new Map(agents.map((a) => [a.id, a]));
+    for (const id of addedIds) {
+      const agent = byAgentId.get(id);
+      if (!agent || !agent.isActive) {
+        return { success: false, error: 'That agent is not an active team member.' };
+      }
+      if (agent.category.name !== 'Sales Agent') {
+        return { success: false, error: 'Only sales agents can be given a creator target.' };
+      }
+      addedNames.set(id, agent.fullName);
+    }
+
+    // An agent given a target here belongs on the creator's roster, or the
+    // creator's next week would be filed without them again.
+    const roster = await db.query.creatorTeamAgents.findMany({
+      where: eq(creatorTeamAgents.creatorId, memberId),
+    });
+    const rosterIds = new Set(roster.map((r) => r.agentId));
+    rosterAdditions = addedIds.filter((id) => !rosterIds.has(id));
+  }
+
+  // A creator target is a commitment made for agents; emptying it out is not an
+  // edit, it is a deletion the member should make instead.
+  const survivingAgentRows =
+    existingRows.filter((r) => r.agentId !== null && !removedSet.has(r.id)).length +
+    newAgentRows.length;
+  if (survivingAgentRows === 0) {
+    return { success: false, error: 'A creator target must keep at least one agent.' };
   }
 
   const changesByRow: Record<string, Record<string, { from: unknown; to: unknown }>> = {};
@@ -407,14 +488,39 @@ export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionRe
     }
   }
 
+  // Added and removed agents go into the same diff so the audit entry reads as
+  // one account of what the admin did to the week.
+  for (const row of newAgentRows) {
+    const name = addedNames.get(row.agentId) ?? row.agentId;
+    changesByRow[`added:${name}`] = Object.fromEntries(
+      AGENT_TARGET_FIELDS.map((f) => [f, { from: null, to: row[f] }]),
+    );
+  }
+  for (const row of removedRows) {
+    const name = row.agent?.fullName ?? String(row.id);
+    changesByRow[`removed:${name}`] = Object.fromEntries(
+      AGENT_TARGET_FIELDS.map((f) => [f, { from: row[f], to: null }]),
+    );
+  }
+
   const changedFieldCount =
     Object.keys(creatorChanges).length +
     agentUpdates.reduce((n, u) => n + Object.keys(u.changes).length, 0);
 
-  if (changedFieldCount === 0) return { success: true, unchanged: true };
+  if (changedFieldCount === 0 && newAgentRows.length === 0 && removedRows.length === 0) {
+    return { success: true, unchanged: true };
+  }
+
+  const summary: string[] = [];
+  if (changedFieldCount) summary.push(`${plural(changedFieldCount, 'value')} changed`);
+  if (newAgentRows.length) summary.push(`${plural(newAgentRows.length, 'agent')} added`);
+  if (removedRows.length) summary.push(`${plural(removedRows.length, 'agent')} removed`);
 
   const editedAt = new Date();
   const week = existingRows[0].week;
+  // Rows added now join the week the member submitted, under its reference.
+  const weekReference = (existingRows.find((r) => r.agentId === null) ?? existingRows[0])
+    .referenceNumber;
 
   await db.transaction(async (tx) => {
     const stamp = {
@@ -423,6 +529,18 @@ export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionRe
       editedBy: admin.username,
       editReason: reason ?? null,
     };
+
+    if (removedTargetIds.length) {
+      await tx
+        .delete(weeklyTargets)
+        .where(
+          and(
+            eq(weeklyTargets.memberId, memberId),
+            eq(weeklyTargets.weekId, weekId),
+            inArray(weeklyTargets.id, removedTargetIds),
+          ),
+        );
+    }
 
     if (creatorRow && Object.keys(creatorChanges).length) {
       await tx
@@ -445,9 +563,47 @@ export async function updateCreatorTargetAsAdmin(raw: unknown): Promise<ActionRe
         .where(eq(weeklyTargets.id, row.targetId));
     }
 
-    await tx
-      .insert(notifications)
-      .values(editNotification(memberId, week.label, changedFieldCount, reason));
+    if (newAgentRows.length) {
+      await tx.insert(weeklyTargets).values(
+        newAgentRows.map((r) => ({
+          memberId,
+          weekId,
+          agentId: r.agentId,
+          reelsTarget: r.reelsTarget,
+          viralVideosTarget: r.viralVideosTarget,
+          leadsTarget: r.leadsTarget,
+          picsTarget: r.picsTarget,
+          longFormTarget: r.longFormTarget,
+          referenceNumber: weekReference,
+          ...stamp,
+        })),
+      );
+    }
+
+    if (rosterAdditions.length) {
+      await tx
+        .insert(creatorTeamAgents)
+        .values(rosterAdditions.map((agentId) => ({ creatorId: memberId, agentId })))
+        .onConflictDoNothing();
+    }
+
+    // Dropping an agent rewrites no surviving row, so without this the week
+    // would read as never edited. Stamp the row that stands for the week.
+    if (removedTargetIds.length) {
+      const alreadyStamped = new Set<number>([
+        ...(creatorRow && Object.keys(creatorChanges).length ? [creatorRow.targetId] : []),
+        ...agentUpdates.map((u) => u.row.targetId),
+      ]);
+      const weekRow = existingRows.find((r) => r.agentId === null);
+      const stampIds = (
+        weekRow ? [weekRow.id] : existingRows.filter((r) => r.agentId !== null).map((r) => r.id)
+      ).filter((id) => !alreadyStamped.has(id) && !removedSet.has(id));
+      if (stampIds.length) {
+        await tx.update(weeklyTargets).set(stamp).where(inArray(weeklyTargets.id, stampIds));
+      }
+    }
+
+    await tx.insert(notifications).values(editNotification(memberId, week.label, summary, reason));
   });
 
   await writeAudit(
