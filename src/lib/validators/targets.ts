@@ -107,6 +107,19 @@ export const adminCreatorAgentTargetEditSchema = z.object({
   longFormTarget: boundedInt,
 });
 
+// An agent the admin is adding to a week that was submitted without them —
+// the roster changed after the creator filed the target, or an agent was
+// simply left out. Same numbers as an existing agent row, keyed by member
+// rather than by row id because the row does not exist yet.
+export const adminCreatorNewAgentRowSchema = z.object({
+  agentId: z.string().min(1, 'Agent required'),
+  reelsTarget: boundedInt,
+  viralVideosTarget: boundedInt,
+  leadsTarget: boundedInt,
+  picsTarget: boundedInt,
+  longFormTarget: boundedInt,
+});
+
 export const adminCreatorTargetEditSchema = z
   .object({
     memberId: z.string().min(1, 'Member required'),
@@ -121,9 +134,19 @@ export const adminCreatorTargetEditSchema = z
       })
       .nullable(),
     agentRows: z.array(adminCreatorAgentTargetEditSchema),
+    newAgentRows: z.array(adminCreatorNewAgentRowSchema).default([]),
+    /** Agent rows to drop from the week. Never the creator's own row. */
+    removedTargetIds: z
+      .array(z.coerce.number().int().positive('Target required'))
+      .default([]),
   })
   .superRefine((val, ctx) => {
-    if (!val.creatorRow && val.agentRows.length === 0) {
+    if (
+      !val.creatorRow &&
+      val.agentRows.length === 0 &&
+      val.newAgentRows.length === 0 &&
+      val.removedTargetIds.length === 0
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Nothing to update for this week',
@@ -145,7 +168,34 @@ export const adminCreatorTargetEditSchema = z
       }
       seen.add(row);
     }
+    // Editing a row and dropping it in the same save is a contradiction, not a
+    // precedence question — the form should never send both.
+    const removed = new Set<number>();
+    for (const id of val.removedTargetIds) {
+      if (seen.has(id) || removed.has(id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'A target row cannot be edited and removed in the same save',
+          path: ['removedTargetIds'],
+        });
+        return;
+      }
+      removed.add(id);
+    }
+    const addedAgents = new Set<string>();
+    for (const row of val.newAgentRows) {
+      if (addedAgents.has(row.agentId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'The same agent was added twice',
+          path: ['newAgentRows'],
+        });
+        return;
+      }
+      addedAgents.add(row.agentId);
+    }
   });
 
 export type AdminSalesTargetEditInput = z.infer<typeof adminSalesTargetEditSchema>;
 export type AdminCreatorTargetEditInput = z.infer<typeof adminCreatorTargetEditSchema>;
+export type AdminCreatorNewAgentRowInput = z.infer<typeof adminCreatorNewAgentRowSchema>;
