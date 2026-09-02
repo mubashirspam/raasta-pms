@@ -31,6 +31,7 @@ const USER_ITEMS: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { href: '/analytics', label: 'Analytics', Icon: BarChart3 },
+  { href: '/team-targets', label: 'Targets', Icon: Target },
   { href: '/team-logs', label: 'Daily Logs', Icon: CalendarDays },
   { href: '/manage-team', label: 'Team', Icon: Users },
 ];
