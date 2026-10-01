@@ -3,6 +3,7 @@ import { getMembers } from '@/lib/actions/members';
 import { currentMonthYearDubai } from '@/lib/domain/weeks';
 import { getWeeksForMonth } from '@/lib/actions/weeks';
 import { getCreatorTeam, getTargetsForWeeks } from '@/lib/actions/targets';
+import { getMyMonthlyTarget } from '@/lib/actions/monthly-targets';
 import { requireMember } from '@/lib/auth-server';
 
 export default async function TargetsPage() {
@@ -12,11 +13,12 @@ export default async function TargetsPage() {
   const isCreator = member.category.name === 'Content Creator';
   const weeks = await getWeeksForMonth(year, month);
 
-  const [salesAgents, myTeam, submitted] = await Promise.all([
+  const [salesAgents, myTeam, submitted, monthlyTarget] = await Promise.all([
     // Only creators need the agent list, for building their roster.
     isCreator ? getMembers({ categoryId: 1, isActive: true }) : Promise.resolve([]),
     isCreator ? getCreatorTeam(member.id) : Promise.resolve([]),
     getTargetsForWeeks(member.id, weeks.map((w) => w.id)),
+    getMyMonthlyTarget(),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export default async function TargetsPage() {
       salesAgents={salesAgents}
       myTeam={myTeam.map((r) => r.agent)}
       submitted={submitted}
+      monthlyTarget={monthlyTarget}
     />
   );
 }

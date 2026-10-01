@@ -88,6 +88,26 @@ export default async function UserHomePage() {
             </div>
           )}
 
+          {mine.monthly && (
+            <div className="mt-4 pt-3 border-t border-raasta-line">
+              <p className="text-xs text-raasta-muted mb-0.5">Monthly target</p>
+              <p className="text-[11px] text-raasta-faint mb-3">
+                Everything logged this month — a slow week can still be made up.
+              </p>
+              <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+                {mine.monthly.map((m) => (
+                  <MetricBar
+                    key={m.key}
+                    label={m.label}
+                    actual={m.actual}
+                    target={m.target}
+                    format={m.format}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {mine.cumulative.length > 0 && (
             <div className="mt-4 pt-3 border-t border-raasta-line">
               <p className="text-xs text-raasta-muted mb-2">Cumulative — no target</p>

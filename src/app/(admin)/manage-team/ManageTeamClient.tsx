@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/Badge';
 import { RefreshCw } from 'lucide-react';
 import { addMember, updateMember, deleteMember, regenerateMemberPin } from '@/lib/actions/members';
 import { changePinAction } from '@/lib/actions/auth';
+import { ContactButtons } from '@/components/ContactLinks';
+import type { Contacts } from '@/lib/domain/contacts';
 import type {
   TeamMember, EmployeeCategory, Position,
 } from '@/db/schema';
@@ -25,11 +27,12 @@ type Login = { userId: string; username: string; pin: string };
 interface Props {
   members: MemberWithRelations[];
   logins: Record<string, Login>;
+  contacts: Record<string, Contacts>;
   categories: EmployeeCategory[];
   positions: Position[];
 }
 
-export function ManageTeamClient({ members, logins, categories, positions }: Props) {
+export function ManageTeamClient({ members, logins, contacts, categories, positions }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<'list' | 'add' | 'settings'>('list');
   const [submitting, setSubmitting] = useState(false);
@@ -161,6 +164,7 @@ export function ManageTeamClient({ members, logins, categories, positions }: Pro
                         <p className="text-raasta-ink font-semibold text-sm truncate">{m.fullName}</p>
                         <p className="text-xs text-raasta-muted">{m.memberCode} · {m.position.name} · {m.category.name}</p>
                         <Credentials login={logins[m.id]} onRegenerate={handleRegenerate} />
+                        <ContactButtons contacts={contacts[m.id]} />
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant="green">Active</Badge>
@@ -194,6 +198,7 @@ export function ManageTeamClient({ members, logins, categories, positions }: Pro
                       <div className="min-w-0">
                         <p className="text-raasta-ink font-semibold text-sm truncate">{m.fullName}</p>
                         <p className="text-xs text-raasta-muted">{m.memberCode} · {m.position.name}</p>
+                        <ContactButtons contacts={contacts[m.id]} />
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant="gray">Inactive</Badge>

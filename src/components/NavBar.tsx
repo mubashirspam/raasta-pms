@@ -13,6 +13,7 @@ import {
   BarChart3,
   CalendarDays,
   Users,
+  UserRound,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ const USER_ITEMS: NavItem[] = [
   { href: '/home', label: 'Home', Icon: Home },
   { href: '/targets', label: 'Target', Icon: Target },
   { href: '/daily-log', label: 'Daily Log', Icon: ClipboardList },
+  { href: '/profile', label: 'Profile', Icon: UserRound },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [

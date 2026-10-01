@@ -15,7 +15,14 @@ import {
   removeCreatorTeamAgent,
 } from '@/lib/actions/targets';
 import { fmtAED, MONTHS } from '@/lib/domain/helpers';
-import type { TeamMember, OperationalWeek, Position, EmployeeCategory } from '@/db/schema';
+import { MonthlyTargetCard } from './MonthlyTargetCard';
+import type {
+  TeamMember,
+  OperationalWeek,
+  Position,
+  EmployeeCategory,
+  MonthlyTarget,
+} from '@/db/schema';
 import { ArrowLeft, Lock, CheckCircle2, Plus, Trash2 } from 'lucide-react';
 
 type MemberWithRelations = TeamMember & { category: EmployeeCategory; position: Position };
@@ -29,6 +36,7 @@ interface Props {
   salesAgents: MemberWithRelations[];
   myTeam: MemberWithRelations[];
   submitted: TargetRow[];
+  monthlyTarget: MonthlyTarget | null;
 }
 
 type Step = 'week' | 'form' | 'review' | 'receipt';
@@ -55,6 +63,7 @@ export function TargetsClient({
   salesAgents,
   myTeam,
   submitted,
+  monthlyTarget,
 }: Props) {
   const router = useRouter();
   const isCreator = member.category.name === 'Content Creator';
@@ -151,10 +160,22 @@ export function TargetsClient({
     return (
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-raasta-ink">Weekly Target</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-raasta-ink">Targets</h1>
           <p className="text-sm text-raasta-muted mt-1">
-            {MONTHS[month]} {year} · pick a week
+            {MONTHS[month]} {year}
           </p>
+        </div>
+
+        <MonthlyTargetCard
+          isCreator={isCreator}
+          month={month}
+          year={year}
+          target={monthlyTarget}
+        />
+
+        <div>
+          <h2 className="text-base font-semibold tracking-tight text-raasta-ink">Weekly Targets</h2>
+          <p className="text-xs text-raasta-muted mt-0.5">Pick a week</p>
         </div>
 
         {weeks.length === 0 && (

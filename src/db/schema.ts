@@ -126,6 +126,25 @@ export const teamMembers = pgTable(
   }),
 );
 
+// ─── Member Profiles ───────────────────────────────────────────────────────────
+// Contact details a member fills in on their own profile; the admin reads them
+// on Profiles. Kept out of team_members on purpose: member rows are handed to
+// other members' pages (a creator's agent picker), and phone numbers must not
+// travel with them. Null means not given. The WhatsApp number is stored as
+// "+digits", the rest as https links on their own platform.
+export const memberProfiles = pgTable('member_profiles', {
+  memberId: text('member_id')
+    .primaryKey()
+    .references(() => teamMembers.id, { onDelete: 'cascade' }),
+  whatsapp: varchar('whatsapp', { length: 20 }),
+  instagramUrl: varchar('instagram_url', { length: 300 }),
+  tiktokUrl: varchar('tiktok_url', { length: 300 }),
+  youtubeUrl: varchar('youtube_url', { length: 300 }),
+  facebookUrl: varchar('facebook_url', { length: 300 }),
+  linkedinUrl: varchar('linkedin_url', { length: 300 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Operational Weeks ─────────────────────────────────────────────────────────
 export const operationalWeeks = pgTable(
   'operational_weeks',
@@ -225,6 +244,47 @@ export const weeklyTargets = pgTable(
     memberIdx: index('weekly_targets_member_idx').on(t.memberId),
     weekIdx: index('weekly_targets_week_idx').on(t.weekId),
     agentIdx: index('weekly_targets_agent_idx').on(t.agentId),
+  }),
+);
+
+// ─── Monthly Targets ───────────────────────────────────────────────────────────
+// One commitment per member per calendar month, alongside the weekly ones.
+// Measured against everything logged in the month, so a short week can be
+// made up later — the weekly targets keep score week by week, this one keeps
+// score for the month. Same columns as weekly_targets so the same target
+// maths reads both. A creator's numbers are totals across all their agents.
+export const monthlyTargets = pgTable(
+  'monthly_targets',
+  {
+    id: serial('id').primaryKey(),
+    memberId: text('member_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'restrict' }),
+    month: integer('month').notNull(),
+    year: integer('year').notNull(),
+    // Sales fields
+    connectedCallsTarget: integer('connected_calls_target'),
+    videoCallsTarget: integer('video_calls_target'),
+    faceToFaceTarget: integer('face_to_face_target'),
+    revenueTarget: decimal('revenue_target', { precision: 14, scale: 2 }),
+    reelsUploadedTarget: integer('reels_uploaded_target'),
+    selfieVideosTarget: integer('selfie_videos_target'),
+    // Creator fields
+    reelsTarget: integer('reels_target'),
+    viralVideosTarget: integer('viral_videos_target'),
+    leadsTarget: integer('leads_target'),
+    picsTarget: integer('pics_target'),
+    longFormTarget: integer('long_form_target'),
+    teamVideosTarget: integer('team_videos_target'),
+    referenceNumber: varchar('reference_number', { length: 30 }).notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    memberMonthUniq: uniqueIndex('monthly_targets_member_month_uniq').on(
+      t.memberId,
+      t.year,
+      t.month,
+    ),
   }),
 );
 
@@ -532,10 +592,12 @@ export type Position = typeof positions.$inferSelect;
 export type AppUser = typeof appUsers.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
+export type MemberProfile = typeof memberProfiles.$inferSelect;
 export type NewTeamMember = typeof teamMembers.$inferInsert;
 export type OperationalWeek = typeof operationalWeeks.$inferSelect;
 export type WeeklyTarget = typeof weeklyTargets.$inferSelect;
 export type NewWeeklyTarget = typeof weeklyTargets.$inferInsert;
+export type MonthlyTarget = typeof monthlyTargets.$inferSelect;
 export type DailyLog = typeof dailyLogs.$inferSelect;
 export type NewDailyLog = typeof dailyLogs.$inferInsert;
 export type CreatorDailyMetrics = typeof creatorDailyMetrics.$inferSelect;

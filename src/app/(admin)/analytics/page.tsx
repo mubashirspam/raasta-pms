@@ -48,7 +48,11 @@ export default async function AnalyticsPage({
   );
 
   const [analytics, notifications, pendingCorrections] = await Promise.all([
-    getRangeAnalytics(range),
+    // Monthly targets are scored only when the whole month is on screen.
+    getRangeAnalytics(
+      range,
+      resolvedPreset === 'month' || resolvedPreset === 'last-month' ? { month, year } : undefined,
+    ),
     getNotifications(true), // unread only
     getPendingCorrections(),
   ]);

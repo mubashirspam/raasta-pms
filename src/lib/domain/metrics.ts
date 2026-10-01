@@ -59,6 +59,11 @@ export interface MemberAnalytics {
   connections: MemberLink[];
   /** Set only for an LER/BDM; see TeamRevenue. */
   teamRevenue: TeamRevenue | null;
+  /**
+   * The month's actuals against the member's monthly target. Present only when
+   * the range is a whole month; null when the member set no monthly target.
+   */
+  monthly: MetricRow[] | null;
 }
 
 /**
@@ -94,6 +99,11 @@ export interface RangeAnalytics {
   cumulativeSeries: Array<{ date: string; cumulative: number }>;
   revenueActual: number;
   revenueTarget: number;
+  /**
+   * Company actuals against the sum of everyone's monthly targets, and how many
+   * members set one. Null unless the range is a whole month.
+   */
+  monthly: { totals: MetricRow[]; targetsSet: number; members: number } | null;
 }
 
 /** Postgres returns sums as strings; nulls mean "nothing recorded". */
