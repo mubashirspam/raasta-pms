@@ -4,6 +4,7 @@ import { db } from '@/db';
 import {
   dailyLogs,
   weeklyTargets,
+  monthlyTargets,
   teamMembers,
   operationalWeeks,
   creatorDailyMetrics,
@@ -18,6 +19,7 @@ import { eq, and, gte, lte, sum, count, sql } from 'drizzle-orm';
 import { isAdminAuthenticated } from '@/lib/auth-server';
 import { weekOverlapFactor, type DateRange } from '@/lib/domain/ranges';
 import { isLeaderPosition, leaderPositionName } from '@/lib/leader-positions';
+import { buildMonthlyRows } from '@/lib/domain/monthly-targets';
 import {
   num as n,
   metric,
@@ -122,8 +124,15 @@ async function collectTargets(range: DateRange) {
 /**
  * Every tracked metric — not just revenue — for an arbitrary date window,
  * company-wide and per person, with viral videos broken out by platform.
+ *
+ * Pass `wholeMonth` only when the range is exactly that calendar month: the
+ * range's actuals are then the month's actuals, and are scored against the
+ * monthly targets as well as the prorated weekly ones.
  */
-export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytics | null> {
+export async function getRangeAnalytics(
+  range: DateRange,
+  wholeMonth?: { month: number; year: number },
+): Promise<RangeAnalytics | null> {
   const isAdmin = await isAdminAuthenticated();
   if (!isAdmin) return null;
 
@@ -142,6 +151,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     dailyRevenueSeries,
     rosterRows,
     targets,
+    monthlyRows,
   ] = await Promise.all([
     db.query.teamMembers.findMany({
       with: { category: true, position: true },
@@ -246,6 +256,18 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       .orderBy(creatorTeamAgents.displayOrder),
 
     collectTargets(range),
+
+    wholeMonth
+      ? db
+          .select()
+          .from(monthlyTargets)
+          .where(
+            and(
+              eq(monthlyTargets.month, wholeMonth.month),
+              eq(monthlyTargets.year, wholeMonth.year),
+            ),
+          )
+      : Promise.resolve(null),
   ]);
 
   // A creator's agents, and an agent's creators — both off the same roster.
@@ -286,6 +308,8 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     list.push(m);
     membersByPosition.set(m.position.name, list);
   }
+
+  const monthlyByMember = new Map((monthlyRows ?? []).map((r) => [r.memberId, r]));
 
   const salesByMember = new Map(salesRows.map((r) => [r.memberId, r]));
   const creatorByMember = new Map(creatorRows.map((r) => [r.memberId, r]));
@@ -369,6 +393,11 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       agentTargets,
     });
 
+    const monthly = buildMonthlyRows(
+      { kind, sales: s, creator: c, credited, viralTotal },
+      monthlyByMember.get(m.id),
+    );
+
     return {
       memberId: m.id,
       fullName: m.fullName,
@@ -387,6 +416,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
       connections:
         (kind === 'creator' ? agentsByCreator.get(m.id) : creatorsByAgent.get(m.id)) ?? [],
       teamRevenue: buildTeamRevenue(m),
+      monthly,
     };
   });
 
@@ -453,6 +483,22 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     stat('selfCircle', 'Connected Self Circle', sumOf(salesRows, (r) => r.connectedSelfCircle)),
   ];
 
+  // The month scored against the sum of everyone's monthly targets. Only the
+  // metrics a monthly target covers are kept.
+  let monthly: RangeAnalytics['monthly'] = null;
+  if (monthlyRows) {
+    const company = emptyTargets();
+    for (const r of monthlyRows) accumulateTarget(company, r, 1);
+    const companyTarget = company as unknown as Record<string, number>;
+    monthly = {
+      totals: totals
+        .filter((t) => t.key in companyTarget)
+        .map((t) => ({ ...t, target: companyTarget[t.key] })),
+      targetsSet: monthlyRows.filter((r) => memberById.get(r.memberId)?.isActive).length,
+      members: members.filter((m) => m.isActive).length,
+    };
+  }
+
   let running = 0;
   const cumulativeSeries = dailyRevenueSeries.map((row) => {
     running += n(row.dailyRevenue);
@@ -468,6 +514,7 @@ export async function getRangeAnalytics(range: DateRange): Promise<RangeAnalytic
     cumulativeSeries,
     revenueActual,
     revenueTarget: targets.company.revenue,
+    monthly,
   };
 }
 

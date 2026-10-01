@@ -199,3 +199,32 @@ export const adminCreatorTargetEditSchema = z
 export type AdminSalesTargetEditInput = z.infer<typeof adminSalesTargetEditSchema>;
 export type AdminCreatorTargetEditInput = z.infer<typeof adminCreatorTargetEditSchema>;
 export type AdminCreatorNewAgentRowInput = z.infer<typeof adminCreatorNewAgentRowSchema>;
+
+// ─── Monthly targets ───────────────────────────────────────────────────────────
+// The member and the month come from the session and the clock, never from
+// the form; only the numbers are submitted. A month is four-plus weeks, so the
+// bounds are wider than a single week's.
+const MAX_MONTHLY_COUNT = MAX_COUNT * 5;
+const monthlyInt = z.coerce
+  .number({ invalid_type_error: 'Enter a number' })
+  .int('Whole numbers only')
+  .min(0, 'Cannot be negative')
+  .max(MAX_MONTHLY_COUNT, `Cannot exceed ${MAX_MONTHLY_COUNT.toLocaleString()}`);
+
+export const salesMonthlyTargetSchema = z.object({
+  connectedCallsTarget: monthlyInt,
+  videoCallsTarget: monthlyInt,
+  faceToFaceTarget: monthlyInt,
+  revenueTarget: boundedDec,
+  reelsUploadedTarget: monthlyInt,
+  selfieVideosTarget: monthlyInt,
+});
+
+export const creatorMonthlyTargetSchema = z.object({
+  reelsTarget: monthlyInt,
+  viralVideosTarget: monthlyInt,
+  leadsTarget: monthlyInt,
+  picsTarget: monthlyInt,
+  longFormTarget: monthlyInt,
+  teamVideosTarget: monthlyInt,
+});

@@ -4,6 +4,7 @@ import { db } from '@/db';
 import {
   dailyLogs,
   weeklyTargets,
+  monthlyTargets,
   operationalWeeks,
   creatorDailyMetrics,
   creatorAgentDailyMetrics,
@@ -26,6 +27,7 @@ import {
   type PlatformCount,
   type MemberKind,
 } from '@/lib/domain/metrics';
+import { buildMonthlyRows } from '@/lib/domain/monthly-targets';
 
 export interface MyAchievement {
   range: DateRange;
@@ -41,6 +43,8 @@ export interface MyAchievement {
   /** How many of the metrics that carry a target have been met. */
   targetsMet: number;
   targetsSet: number;
+  /** The month so far against the member's monthly target; null if none set. */
+  monthly: MetricRow[] | null;
 }
 
 /**
@@ -66,8 +70,15 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
     lte(dailyLogs.logDate, to),
   );
 
-  const [salesRows, creatorRows, creditedRows, platformRows, creatorPlatformRows, targetRows] =
-    await Promise.all([
+  const [
+    salesRows,
+    creatorRows,
+    creditedRows,
+    platformRows,
+    creatorPlatformRows,
+    targetRows,
+    monthlyTarget,
+  ] = await Promise.all([
       db
         .select({
           connectedCalls: sum(dailyLogs.connectedCalls),
@@ -171,6 +182,14 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
             sql`(${weeklyTargets.memberId} = ${memberId} or ${weeklyTargets.agentId} = ${memberId})`,
           ),
         ),
+
+      db.query.monthlyTargets.findFirst({
+        where: and(
+          eq(monthlyTargets.memberId, memberId),
+          eq(monthlyTargets.month, month),
+          eq(monthlyTargets.year, year),
+        ),
+      }),
     ]);
 
   const kind: MemberKind =
@@ -215,6 +234,10 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
   });
 
   const scored = metrics.filter((m) => m.target > 0);
+  const monthly = buildMonthlyRows(
+    { kind, sales, creator: creatorRows[0], credited: creditedRows[0], viralTotal },
+    monthlyTarget,
+  );
 
   return {
     range,
@@ -229,5 +252,6 @@ export async function getMyAchievement(): Promise<MyAchievement | null> {
     daysAbsent: n(sales?.absent),
     targetsMet: scored.filter((m) => m.actual >= m.target).length,
     targetsSet: scored.length,
+    monthly,
   };
 }

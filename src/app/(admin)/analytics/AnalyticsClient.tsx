@@ -26,6 +26,7 @@ import type {
   MemberAnalytics,
   MemberLink,
   TeamRevenue,
+  MetricRow,
 } from '@/lib/actions/analytics';
 import type {
   TeamMember,
@@ -104,7 +105,8 @@ export function AnalyticsClient({
           m.viralTotal > 0 ||
           // A leader may log nothing themselves and still carry a team.
           (m.teamRevenue?.total ?? 0) > 0 ||
-          m.metrics.some((x) => x.actual > 0 || x.target > 0),
+          m.metrics.some((x) => x.actual > 0 || x.target > 0) ||
+          (m.monthly?.some((x) => x.target > 0) ?? false),
       ),
     [a],
   );
@@ -243,9 +245,33 @@ export function AnalyticsClient({
                 )}
               </Card>
 
+              {/* The month as a whole: a slow week can be made up later. */}
+              {a.monthly && (
+                <Card>
+                  <CardTitle className="mb-1">Monthly target</CardTitle>
+                  <p className="text-xs text-raasta-muted mb-4">
+                    Everything logged this month against the monthly targets members set ·{' '}
+                    {a.monthly.targetsSet} of {a.monthly.members} members have set one.
+                  </p>
+                  <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+                    {a.monthly.totals.map((m) => (
+                      <MetricBar
+                        key={m.key}
+                        label={m.label}
+                        actual={m.actual}
+                        target={m.target}
+                        format={m.format}
+                      />
+                    ))}
+                  </div>
+                </Card>
+              )}
+
               {/* Every target dimension, not just revenue. */}
               <Card>
-                <CardTitle className="mb-1">Target achievement</CardTitle>
+                <CardTitle className="mb-1">
+                  {a.monthly ? 'Weekly target achievement' : 'Target achievement'}
+                </CardTitle>
                 <p className="text-xs text-raasta-muted mb-4">
                   Weekly targets are prorated to the selected period.
                 </p>
@@ -329,6 +355,7 @@ export function AnalyticsClient({
                 ms={ms}
                 expanded={expandedMembers.has(ms.memberId)}
                 onToggle={() => toggleMember(ms.memberId)}
+                monthView={!!a?.monthly}
               />
             ))
           )}
@@ -516,6 +543,38 @@ export function AnalyticsClient({
 }
 
 /**
+ * The month's actuals against the member's own monthly target. Shown above the
+ * weekly rows because it is the number that forgives a slow week.
+ */
+function MonthlyPanel({ monthly }: { monthly: MetricRow[] | null }) {
+  if (!monthly) {
+    return (
+      <p className="mt-4 text-xs text-raasta-faint">No monthly target set for this month.</p>
+    );
+  }
+  const scored = monthly.filter((m) => m.target > 0);
+  const met = scored.filter((m) => m.actual >= m.target).length;
+
+  return (
+    <div className="mt-4 pb-4 border-b border-raasta-line">
+      <div className="flex items-baseline justify-between gap-2 mb-2">
+        <p className="text-xs text-raasta-muted">Monthly target</p>
+        {scored.length > 0 && (
+          <span className="text-xs tabular-nums text-raasta-faint">
+            {met}/{scored.length} met
+          </span>
+        )}
+      </div>
+      <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+        {monthly.map((m) => (
+          <MetricBar key={m.key} label={m.label} actual={m.actual} target={m.target} format={m.format} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * An LER/BDM's team revenue. Summed from the agents holding this leader's own
  * position rather than typed into the log, so the parts are shown alongside the
  * total — a wrong total means someone is on the wrong position.
@@ -603,10 +662,13 @@ function MemberCard({
   ms,
   expanded,
   onToggle,
+  monthView,
 }: {
   ms: MemberAnalytics;
   expanded: boolean;
   onToggle: () => void;
+  /** The range is a whole month, so the monthly target can be scored. */
+  monthView: boolean;
 }) {
   const scored = ms.metrics.filter((m) => m.target > 0);
   const met = scored.filter((m) => m.actual >= m.target).length;
@@ -660,7 +722,10 @@ function MemberCard({
 
       {expanded && (
         <>
-        <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 mt-4">
+        {monthView && <MonthlyPanel monthly={ms.monthly} />}
+
+        {monthView && <p className="text-xs text-raasta-muted mt-4">Weekly targets</p>}
+        <div className={cn('grid gap-x-5 gap-y-4 sm:grid-cols-2', monthView ? 'mt-2' : 'mt-4')}>
           {ms.metrics.map((m) => (
             <MetricBar
               key={m.key}
