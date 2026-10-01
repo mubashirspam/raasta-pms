@@ -126,6 +126,25 @@ export const teamMembers = pgTable(
   }),
 );
 
+// ─── Member Profiles ───────────────────────────────────────────────────────────
+// Contact details a member fills in on their own profile; the admin reads them
+// on Profiles. Kept out of team_members on purpose: member rows are handed to
+// other members' pages (a creator's agent picker), and phone numbers must not
+// travel with them. Null means not given. The WhatsApp number is stored as
+// "+digits", the rest as https links on their own platform.
+export const memberProfiles = pgTable('member_profiles', {
+  memberId: text('member_id')
+    .primaryKey()
+    .references(() => teamMembers.id, { onDelete: 'cascade' }),
+  whatsapp: varchar('whatsapp', { length: 20 }),
+  instagramUrl: varchar('instagram_url', { length: 300 }),
+  tiktokUrl: varchar('tiktok_url', { length: 300 }),
+  youtubeUrl: varchar('youtube_url', { length: 300 }),
+  facebookUrl: varchar('facebook_url', { length: 300 }),
+  linkedinUrl: varchar('linkedin_url', { length: 300 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Operational Weeks ─────────────────────────────────────────────────────────
 export const operationalWeeks = pgTable(
   'operational_weeks',
@@ -532,6 +551,7 @@ export type Position = typeof positions.$inferSelect;
 export type AppUser = typeof appUsers.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
+export type MemberProfile = typeof memberProfiles.$inferSelect;
 export type NewTeamMember = typeof teamMembers.$inferInsert;
 export type OperationalWeek = typeof operationalWeeks.$inferSelect;
 export type WeeklyTarget = typeof weeklyTargets.$inferSelect;
